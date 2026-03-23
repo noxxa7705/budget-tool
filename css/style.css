@@ -1268,7 +1268,6 @@ input[type="number"] {
 }
 
 /* ── TOAST NOTIFICATIONS ────────────────────────────────– */
-
 .toast {
   position: fixed;
   bottom: 24px;
@@ -1276,18 +1275,21 @@ input[type="number"] {
   transform: translateX(-50%) translateY(120px);
   background: var(--bg-1);
   border: 1px solid var(--border);
+  border-radius: var(--r-md);
   color: var(--text);
   padding: 12px 16px;
-  border-radius: var(--r-md);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  max-width: 90%;
   z-index: 250;
-  transition: transform var(--transition);
+  transition: transform var(--transition), opacity var(--transition);
   pointer-events: none;
+  opacity: 0;
 }
 
 .toast.visible {
   transform: translateX(-50%) translateY(0);
   pointer-events: auto;
+  opacity: 1;
 }
 
 /* ── PHASE 1: AI INSIGHTS BANNER ────────────────────────– */

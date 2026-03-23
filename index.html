@@ -29,7 +29,7 @@
 
 <div id="app" class="app-container" @keydown.escape.window="hideModals">
   <!-- Toast notifications -->
-  <div class="toast" :class="{ visible: notification }">{{ notification }}</div>
+  <div class="toast" :class="{ visible: notification && notification.trim() }">{{ notification }}</div>
 
   <!-- Main content area -->
   <div class="content-area">
