@@ -38,7 +38,19 @@ const app = createApp({
       type: 'expense',
       isRecurring: false,
       frequency: 'monthly',
+      tags: [],
+      tagsInput: '',
     });
+
+    // ==================== Phase 4: Undo/Redo State ====================
+    const actionHistory = ref([]);
+    const historyIndex = ref(-1);
+    const undoStack = ref([]);
+    const redoStack = ref([]);
+
+    // ==================== Phase 4: Merchant Autocomplete ====================
+    const merchantSuggestions = ref([]);
+    const showMerchantSuggestions = ref(false);
 
     // ==================== Phase 1: UX Improvements State ====================
     // AI Insights
@@ -71,11 +83,19 @@ const app = createApp({
       await loadAllData();
       await initializeIndexedDB();
       setupServiceWorker();
+      loadTheme();
       applyTheme();
       // Phase 3: Load filter state from localStorage
       loadFilterState();
+      // Phase 4: Set up keyboard shortcuts
+      window.addEventListener('keydown', handleKeyboardShortcuts);
       // Fetch AI insight on mount
       await fetchAIInsight();
+    });
+
+    // Clean up keyboard shortcuts on unmount
+    onBeforeUnmount(() => {
+      window.removeEventListener('keydown', handleKeyboardShortcuts);
     });
 
     async function loadAllData() {
@@ -153,7 +173,27 @@ const app = createApp({
     }
 
     function applyTheme() {
-      document.documentElement.setAttribute('data-theme', settings.value.theme);
+      const theme = settings.value.theme || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+      document.body.setAttribute('data-theme', theme);
+      // Persist theme to localStorage
+      try {
+        localStorage.setItem('nightledger-theme', theme);
+      } catch (err) {
+        console.warn('Failed to save theme:', err);
+      }
+    }
+
+    // Load theme from localStorage on startup
+    function loadTheme() {
+      try {
+        const savedTheme = localStorage.getItem('nightledger-theme');
+        if (savedTheme) {
+          settings.value.theme = savedTheme;
+        }
+      } catch (err) {
+        console.warn('Failed to load theme:', err);
+      }
     }
 
     // ==================== Computed Properties ====================
@@ -319,6 +359,7 @@ const app = createApp({
     }
 
     // ==================== Phase 3: Advanced Search & Filter ====================
+    // ==================== Phase 4: Tags Filter ====================
     // Filter state for all filter parameters
     const filterState = reactive({
       text: '',
@@ -327,6 +368,16 @@ const app = createApp({
       type: '', // 'income', 'expense', or '' for all
       account: '', // account ID or '' for all
       category: '', // category ID or '' for all
+      tags: [], // Phase 4: Array of tag filters
+    });
+
+    // Get all unique tags from transactions
+    const allTags = computed(() => {
+      const tags = new Set();
+      transactions.value.forEach(txn => {
+        (txn.tags || []).forEach(tag => tags.add(tag));
+      });
+      return Array.from(tags).sort();
     });
 
     // Load filter state from localStorage on mount
@@ -354,6 +405,11 @@ const app = createApp({
     // Watch for changes to filterState and save to localStorage
     watch(() => filterState, saveFilterState, { deep: true });
 
+    // Watch for theme changes and apply immediately
+    watch(() => settings.value.theme, () => {
+      applyTheme();
+    });
+
     // Sync filterText (legacy) with filterState.text for backward compatibility
     watch(() => filterText.value, (val) => {
       if (filterState.text !== val) {
@@ -376,6 +432,7 @@ const app = createApp({
       if (filterState.type) count++;
       if (filterState.account) count++;
       if (filterState.category) count++;
+      if (filterState.tags.length > 0) count++;
       return count;
     });
 
@@ -387,6 +444,7 @@ const app = createApp({
       filterState.type = '';
       filterState.account = '';
       filterState.category = '';
+      filterState.tags = [];
       showFilterModal.value = false;
     }
 
@@ -523,6 +581,13 @@ const app = createApp({
         // Category filter
         if (filterState.category && t.category !== filterState.category) {
           return false;
+        }
+
+        // Phase 4: Tags filter - match any selected tag
+        if (filterState.tags.length > 0) {
+          const txnTags = t.tags || [];
+          const hasMatchingTag = filterState.tags.some(tag => txnTags.includes(tag));
+          if (!hasMatchingTag) return false;
         }
 
         return true;
@@ -780,11 +845,13 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
           description: quickAdd.description || 'Transaction',
           date: quickAdd.date,
           type: quickAdd.type,
+          tags: quickAdd.tags || [],
           timestamp: Date.now(),
         };
 
         transactions.value.push(txn);
         updateAccountBalance(quickAdd.account, parseFloat(quickAdd.amount), quickAdd.type === 'expense');
+        recordAction('add_transaction', { txn });
         showNotification('Transaction added!');
       }
       
@@ -796,6 +863,8 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       quickAdd.date = new Date().toISOString().split('T')[0];
       quickAdd.isRecurring = false;
       quickAdd.frequency = 'monthly';
+      quickAdd.tags = [];
+      quickAdd.tagsInput = '';
       predictedCategories.value = [];
       showQuickAddMenu.value = false;
       
@@ -814,12 +883,14 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         description: receiptParsed.value.merchant || 'Receipt',
         date: receiptParsed.value.date,
         type: 'expense',
+        tags: [],
         receiptImage: receiptImage.value,
         receiptData: receiptParsed.value,
         timestamp: Date.now(),
       };
 
       transactions.value.push(txn);
+      recordAction('add_transaction', { txn });
       updateAccountBalance(quickAdd.account, receiptParsed.value.amount, true);
       saveAllData();
 
@@ -843,6 +914,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       if (!txn) return;
 
       updateAccountBalance(txn.account, txn.amount, txn.type === 'expense', true);
+      recordAction('delete_transaction', { txn: JSON.parse(JSON.stringify(txn)) });
       transactions.value = transactions.value.filter(t => t.id !== id);
       saveAllData();
       contextMenu.visible = false;
@@ -862,8 +934,10 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         ...txn,
         id: 'txn-' + Date.now(),
         date: new Date().toISOString().split('T')[0],
+        tags: txn.tags ? [...txn.tags] : [],
       };
       transactions.value.push(dup);
+      recordAction('add_transaction', { txn: dup });
       saveAllData();
       contextMenu.visible = false;
       showNotification('Transaction duplicated');
@@ -974,6 +1048,44 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       }
     }
 
+    // ==================== Phase 4: CSV Export ====================
+    function exportAsCSV() {
+      // Prepare CSV headers
+      const headers = ['Date', 'Description', 'Amount', 'Type', 'Category', 'Account', 'Tags'];
+      
+      // Prepare CSV rows
+      const rows = transactions.value.map(txn => {
+        const category = categories.value.find(c => c.id === txn.category);
+        const account = accounts.value.find(a => a.id === txn.account);
+        const tagString = (txn.tags || []).join(', ');
+        return [
+          txn.date,
+          txn.description || '',
+          txn.amount,
+          txn.type,
+          category ? category.name : 'Unknown',
+          account ? account.name : 'Unknown',
+          tagString,
+        ];
+      });
+
+      // Convert to CSV format
+      const csvContent = [
+        headers.map(h => `"${h}"`).join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `night-ledger-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showNotification('CSV exported successfully!');
+    }
+
     function exportData() {
       const data = {
         accounts: accounts.value,
@@ -993,6 +1105,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       a.href = url;
       a.download = `night-ledger-export-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
+      URL.revokeObjectURL(url);
       showNotification('Exported successfully!');
     }
 
@@ -1033,6 +1146,110 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       if (displayMonth.year === now.getFullYear() && displayMonth.month > now.getMonth()) {
         previousMonth();
       }
+    }
+
+    // ==================== Phase 4: Undo/Redo System ====================
+    function recordAction(actionType, data) {
+      const action = {
+        id: 'action-' + Date.now(),
+        type: actionType,
+        timestamp: new Date().toISOString(),
+        data: JSON.parse(JSON.stringify(data)), // Deep clone to avoid reference issues
+      };
+
+      // Add to history and trim to last 5 actions
+      actionHistory.value.push(action);
+      if (actionHistory.value.length > 5) {
+        actionHistory.value.shift();
+      }
+      historyIndex.value = actionHistory.value.length - 1;
+      redoStack.value = []; // Clear redo stack when new action is performed
+    }
+
+    function undo() {
+      if (historyIndex.value > 0) {
+        historyIndex.value--;
+        const action = actionHistory.value[historyIndex.value];
+        
+        // Apply undo based on action type
+        if (action.type === 'add_transaction') {
+          transactions.value = transactions.value.filter(t => t.id !== action.data.txn.id);
+          updateAccountBalance(action.data.txn.account, action.data.txn.amount, action.data.txn.type === 'expense', true);
+        } else if (action.type === 'delete_transaction') {
+          transactions.value.push(action.data.txn);
+          updateAccountBalance(action.data.txn.account, action.data.txn.amount, action.data.txn.type === 'expense', false);
+        } else if (action.type === 'edit_transaction') {
+          const idx = transactions.value.findIndex(t => t.id === action.data.oldTxn.id);
+          if (idx >= 0) {
+            transactions.value[idx] = action.data.oldTxn;
+          }
+        }
+        
+        saveAllData();
+        showNotification('Undo successful');
+      }
+    }
+
+    function redo() {
+      if (historyIndex.value < actionHistory.value.length - 1) {
+        historyIndex.value++;
+        const action = actionHistory.value[historyIndex.value];
+        
+        // Apply redo based on action type
+        if (action.type === 'add_transaction') {
+          transactions.value.push(action.data.txn);
+          updateAccountBalance(action.data.txn.account, action.data.txn.amount, action.data.txn.type === 'expense', false);
+        } else if (action.type === 'delete_transaction') {
+          transactions.value = transactions.value.filter(t => t.id !== action.data.txn.id);
+          updateAccountBalance(action.data.txn.account, action.data.txn.amount, action.data.txn.type === 'expense', true);
+        } else if (action.type === 'edit_transaction') {
+          const idx = transactions.value.findIndex(t => t.id === action.data.newTxn.id);
+          if (idx >= 0) {
+            transactions.value[idx] = action.data.newTxn;
+          }
+        }
+        
+        saveAllData();
+        showNotification('Redo successful');
+      }
+    }
+
+    // Setup keyboard shortcuts for undo/redo
+    function handleKeyboardShortcuts(e) {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          undo();
+        } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+          e.preventDefault();
+          redo();
+        }
+      }
+    }
+
+    // ==================== Phase 4: Merchant Autocomplete ====================
+    function getMerchantSuggestions(input) {
+      if (!input || input.length < 2) {
+        merchantSuggestions.value = [];
+        return;
+      }
+
+      const merchants = new Set();
+      transactions.value.forEach(txn => {
+        if (txn.description && txn.description.toLowerCase().includes(input.toLowerCase())) {
+          merchants.add(txn.description);
+        }
+      });
+
+      merchantSuggestions.value = Array.from(merchants)
+        .filter(m => m !== input)
+        .slice(0, 5);
+    }
+
+    function selectMerchantSuggestion(merchant) {
+      quickAdd.description = merchant;
+      merchantSuggestions.value = [];
+      showMerchantSuggestions.value = false;
     }
 
     // ==================== Goals ====================
@@ -1137,6 +1354,26 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       // Phase 3: Filter functions
       clearAllFilters,
       highlightText,
+
+      // Phase 4: Undo/Redo
+      undo,
+      redo,
+      recordAction,
+      actionHistory,
+      historyIndex,
+
+      // Phase 4: CSV Export
+      exportAsCSV,
+
+      // Phase 4: Merchant Autocomplete
+      getMerchantSuggestions,
+      selectMerchantSuggestion,
+      merchantSuggestions,
+      showMerchantSuggestions,
+
+      // Phase 4: Tags
+      allTags,
+      loadTheme,
     };
   },
 });

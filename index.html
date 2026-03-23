@@ -142,43 +142,59 @@
         </div>
 
         <!-- Phase 3: Filter Panel -->
-        <div v-if="showFilterModal" class="filter-panel">
-          <div class="filter-section">
-            <h4 class="filter-label">Date Range</h4>
-            <div class="filter-row">
-              <input v-model="filterState.dateFrom" type="date" class="filter-input" placeholder="From">
-              <span class="filter-separator">→</span>
-              <input v-model="filterState.dateTo" type="date" class="filter-input" placeholder="To">
+        <div v-if=\"showFilterModal\" class=\"filter-panel\">
+          <div class=\"filter-section\">
+            <h4 class=\"filter-label\">Date Range</h4>
+            <div class=\"filter-row\">
+              <input v-model=\"filterState.dateFrom\" type=\"date\" class=\"filter-input\" placeholder=\"From\">
+              <span class=\"filter-separator\">→</span>
+              <input v-model=\"filterState.dateTo\" type=\"date\" class=\"filter-input\" placeholder=\"To\">
             </div>
           </div>
 
-          <div class="filter-section">
-            <h4 class="filter-label">Type</h4>
-            <div class="filter-chips">
-              <button :class="['filter-chip', { active: filterState.type === '' }]" @click="filterState.type = ''">
-                All
-              </button>
-              <button :class="['filter-chip', { active: filterState.type === 'income' }]" @click="filterState.type = 'income'">
-                💰 Income
-              </button>
-              <button :class="['filter-chip', { active: filterState.type === 'expense' }]" @click="filterState.type = 'expense'">
-                💸 Expense
-              </button>
+          <div class=\"filter-section\">
+            <h4 class=\"filter-label\">Type</h4>
+            <div class=\"filter-chips\">
+              <button :class=\"['filter-chip', { active: filterState.type === '' }]\" @click=\"filterState.type = ''\">\n                All\n              </button>
+              <button :class=\"['filter-chip', { active: filterState.type === 'income' }]\" @click=\"filterState.type = 'income'\">\n                💰 Income\n              </button>
+              <button :class=\"['filter-chip', { active: filterState.type === 'expense' }]\" @click=\"filterState.type = 'expense'\">\n                💸 Expense\n              </button>
             </div>
           </div>
 
-          <div class="filter-section">
-            <h4 class="filter-label">Account</h4>
-            <select v-model="filterState.account" class="filter-select">
-              <option value="">All Accounts</option>
-              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
-                {{ acc.name }}
-              </option>
-            </select>
+          <div class=\"filter-section\">
+            <h4 class=\"filter-label\">Account</h4>
+            <select v-model=\"filterState.account\" class=\"filter-select\">
+              <option value=\"\">All Accounts</option>
+              <option v-for=\"acc in accounts\" :key=\"acc.id\" :value=\"acc.id\">\n                {{ acc.name }}\n              </option>\n            </select>\n          </div>
+
+          <div class=\"filter-section\">
+            <h4 class=\"filter-label\">Category</h4>
+            <select v-model=\"filterState.category\" class=\"filter-select\">
+              <option value=\"\">All Categories</option>
+              <option v-for=\"cat in categories\" :key=\"cat.id\" :value=\"cat.id\">\n                {{ cat.emoji }} {{ cat.name }}\n              </option>\n            </select>
           </div>
 
-          <div class="filter-section">
-            <h4 class="filter-label">Category</h4>
+          <!-- Phase 4: Tags Filter -->
+          <div v-if=\"allTags.length > 0\" class=\"filter-section\">
+            <h4 class=\"filter-label\">Tags</h4>
+            <div class=\"filter-chips\">
+              <button 
+                v-for=\"tag in allTags\" 
+                :key=\"tag\"
+                :class=\"['filter-chip', { active: filterState.tags.includes(tag) }]\"
+                @click=\"() => {
+                  if (filterState.tags.includes(tag)) {
+                    filterState.tags = filterState.tags.filter(t => t !== tag);
+                  } else {
+                    filterState.tags.push(tag);
+                  }
+                }\">\n                🏷️ {{ tag }}\n              </button>\n            </div>\n          </div>
+
+          <div class=\"filter-footer\">
+            <button @click=\"clearAllFilters\" class=\"btn-secondary btn-sm\">Clear All</button>
+            <button @click=\"showFilterModal = false\" class=\"btn-primary btn-sm\">Done</button>
+          </div>
+        </div>
             <select v-model="filterState.category" class="filter-select">
               <option value="">All Categories</option>
               <option v-for="cat in categories" :key="cat.id" :value="cat.id">
@@ -204,19 +220,23 @@
           <p>No transactions found</p>
           <p class="text-muted" v-if="activeFilterCount > 0 || filterState.text">Try adjusting your filters</p>
         </div>
-        <div v-else class="transactions-list">
-          <div class="txn-group" v-for="group in groupedTransactions" :key="group.date">
-            <div class="txn-group-header">{{ formatDate(group.date) }}</div>
-            <div v-for="txn in group.txns" :key="txn.id" class="txn-row" @contextmenu.prevent="showTxnMenu(txn)">
-              <div class="txn-info">
-                <div class="txn-desc">{{ txn.description }}</div>
-                <div class="txn-category">
+        <div v-else class=\"transactions-list\">
+          <div class=\"txn-group\" v-for=\"group in groupedTransactions\" :key=\"group.date\">
+            <div class=\"txn-group-header\">{{ formatDate(group.date) }}</div>
+            <div v-for=\"txn in group.txns\" :key=\"txn.id\" class=\"txn-row\" @contextmenu.prevent=\"showTxnMenu(txn)\">
+              <div class=\"txn-info\">
+                <div class=\"txn-desc\">{{ txn.description }}</div>
+                <div class=\"txn-category\">
                   {{ categories.find(c => c.id === txn.category)?.emoji }} 
                   {{ categories.find(c => c.id === txn.category)?.name }} • 
                   {{ accounts.find(a => a.id === txn.account)?.name }}
                 </div>
+                <!-- Phase 4: Display Tags -->
+                <div v-if=\"txn.tags && txn.tags.length > 0\" class=\"txn-tags\">
+                  <span v-for=\"tag in txn.tags\" :key=\"tag\" class=\"txn-tag\">🏷️ {{ tag }}</span>
+                </div>
               </div>
-              <div class="txn-amount" :class="txn.type === 'expense' ? 'negative' : 'positive'">
+              <div class=\"txn-amount\" :class=\"txn.type === 'expense' ? 'negative' : 'positive'\">
                 {{ txn.type === 'expense' ? '-' : '+' }}{{ formatCurrency(Math.abs(txn.amount)) }}
               </div>
             </div>
@@ -303,25 +323,23 @@
     <!-- Settings Tab -->
     <div v-show="activeTab === 'settings'" class="tab-content">
       <div class="settings-view">
-        <div class="settings-section">
+        <div class=\"settings-section\">
           <h3>Display</h3>
-          <div class="setting-row">
+          <div class=\"setting-row\">
             <label>Currency</label>
-            <select v-model="settings.currency" class="select-input">
-              <option value="USD">USD ($)</option>
-              <option value="EUR">EUR (€)</option>
-              <option value="GBP">GBP (£)</option>
-              <option value="JPY">JPY (¥)</option>
+            <select v-model=\"settings.currency\" class=\"select-input\">
+              <option value=\"USD\">USD ($)</option>
+              <option value=\"EUR\">EUR (€)</option>
+              <option value=\"GBP\">GBP (£)</option>
+              <option value=\"JPY\">JPY (¥)</option>
             </select>
           </div>
-          <div class="setting-row">
+          <div class=\"setting-row\">
             <label>Theme</label>
-            <select v-model="settings.theme" class="select-input">
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </div>
-        </div>
+            <div class=\"theme-toggle-row\">
+              <button 
+                :class=\"['theme-toggle-btn', { active: settings.theme === 'dark' }]\"
+                @click=\"settings.theme = 'dark'\"\n                title=\"Dark mode\">\n                🌙 Dark\n              </button>\n              <button \n                :class=\"['theme-toggle-btn', { active: settings.theme === 'light' }]\"\n                @click=\"settings.theme = 'light'\"\n                title=\"Light mode\">\n                ☀️ Light\n              </button>\n            </div>\n          </div>\n        </div>
 
         <div class="settings-section">
           <h3>AI & LLM</h3>
@@ -346,11 +364,12 @@
           <button @click="testConnections" class="btn-primary">Test Connections</button>
         </div>
 
-        <div class="settings-section">
+        <div class=\"settings-section\">
           <h3>Data</h3>
-          <button @click="exportData" class="btn-secondary">Export as JSON</button>
-          <button @click="showImportModal = true" class="btn-secondary">Import from JSON</button>
-          <button @click="clearAllData" class="btn-danger">Clear All Data</button>
+          <button @click=\"exportAsCSV\" class=\"btn-secondary\">📊 Export as CSV</button>
+          <button @click=\"exportData\" class=\"btn-secondary\">Export as JSON</button>
+          <button @click=\"showImportModal = true\" class=\"btn-secondary\">Import from JSON</button>
+          <button @click=\"clearAllData\" class=\"btn-danger\">Clear All Data</button>
         </div>
 
         <div class="settings-section">
@@ -452,7 +471,22 @@
           </div>
           <div class=\"form-group\">
             <label>Description</label>
-            <input v-model=\"quickAdd.description\" type=\"text\" placeholder=\"What was this for?\" class=\"text-input\">
+            <div class=\"merchant-autocomplete\">
+              <input v-model=\"quickAdd.description\" 
+                     @input=\"getMerchantSuggestions(quickAdd.description); showMerchantSuggestions = quickAdd.description.length > 1\"
+                     @focus=\"showMerchantSuggestions = quickAdd.description.length > 1\"
+                     @blur=\"setTimeout(() => showMerchantSuggestions = false, 200)\"
+                     type=\"text\" placeholder=\"What was this for?\" class=\"text-input\">
+              <!-- Phase 4: Merchant Suggestions -->
+              <div v-if=\"showMerchantSuggestions && merchantSuggestions.length > 0\" class=\"autocomplete-dropdown\">
+                <div v-for=\"merchant in merchantSuggestions\" 
+                     :key=\"merchant\"
+                     @click=\"selectMerchantSuggestion(merchant)\"
+                     class=\"autocomplete-item\">
+                  {{ merchant }}
+                </div>
+              </div>
+            </div>
             <!-- AI Category Predictions -->
             <div v-if=\"predictedCategories.length > 0 || categoryPredictionLoading\" class=\"category-predictions\">
               <div v-if=\"categoryPredictionLoading\" class=\"prediction-loading\">
@@ -475,6 +509,17 @@
           <div class=\"form-group\">
             <label>Date</label>
             <input v-model=\"quickAdd.date\" type=\"date\" class=\"text-input\">
+          </div>
+          <!-- Phase 4: Tags Input -->
+          <div class=\"form-group\">
+            <label>Tags (optional)</label>
+            <input v-model=\"quickAdd.tagsInput\" type=\"text\" placeholder=\"Add tags separated by commas\" class=\"text-input\" @change=\"quickAdd.tags = quickAdd.tagsInput.split(',').map(t => t.trim()).filter(t => t)\">
+            <div v-if=\"quickAdd.tags.length > 0\" class=\"tag-chips\">
+              <span v-for=\"(tag, idx) in quickAdd.tags\" :key=\"idx\" class=\"tag-chip\">
+                {{ tag }}
+                <button @click=\"quickAdd.tags.splice(idx, 1); quickAdd.tagsInput = quickAdd.tags.join(', ')\" class=\"tag-remove\">×</button>
+              </span>
+            </div>
           </div>
           <!-- Phase 2: Recurring Transaction Options -->
           <div class=\"form-group\">
