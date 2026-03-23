@@ -14,6 +14,12 @@ const app = createApp({
     const naturalLanguageInput = ref('');
     
     const aiEndpointStatus = ref('idle');
+    const llmModelStatus = ref('idle');
+    const visionModelStatus = ref('idle');
+    const llmModelOptions = ref([]);
+    const visionModelOptions = ref([]);
+    const llmModelError = ref('');
+    const visionModelError = ref('');
 
     // Receipt OCR state
     const receiptImage = ref(null);
@@ -176,11 +182,113 @@ const app = createApp({
       currency: 'USD',
       theme: 'dark',
       llmEndpoint: '',
+      llmModel: window.AI?.defaults?.model || 'gpt-4.1-mini',
       apiKey: '',
       visionEndpoint: '',
+      visionModel: window.AI?.defaults?.visionModel || 'gpt-4.1-mini',
       visionApiKey: '',
       incomeTarget: 0, // Phase 9: Monthly income target
     });
+
+    const selectableVisionModels = computed(() => {
+      const explicitVision = visionModelOptions.value.filter((model) => model.capabilities.includes('vision'));
+      return explicitVision.length ? explicitVision : visionModelOptions.value;
+    });
+
+    const selectedLlmModel = computed(() =>
+      llmModelOptions.value.find((model) => model.id === settings.value.llmModel) || null
+    );
+
+    const selectedVisionModel = computed(() =>
+      selectableVisionModels.value.find((model) => model.id === settings.value.visionModel) ||
+      visionModelOptions.value.find((model) => model.id === settings.value.visionModel) ||
+      null
+    );
+
+    function getCapabilityBadges(model) {
+      if (!model || !Array.isArray(model.capabilities) || !model.capabilities.length) return ['text'];
+      return model.capabilities;
+    }
+
+    function formatCompactNumber(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num) || num <= 0) return '';
+      return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(num);
+    }
+
+    function formatModelStat(value, suffix) {
+      const compact = formatCompactNumber(value);
+      return compact ? `${compact} ${suffix}` : '';
+    }
+
+    function getModelStatLine(model) {
+      if (!model) return '';
+      const parts = [
+        formatModelStat(model.contextWindow, 'ctx'),
+        formatModelStat(model.promptRateLimit, 'tpm'),
+        formatModelStat(model.requestRateLimit, 'rpm'),
+      ].filter(Boolean);
+      return parts.join(' • ');
+    }
+
+    function syncModelSelection(kind, models) {
+      const key = kind === 'vision' ? 'visionModel' : 'llmModel';
+      const current = settings.value[key];
+      const candidateModels = kind === 'vision'
+        ? (models.filter((model) => model.capabilities.includes('vision')).length
+            ? models.filter((model) => model.capabilities.includes('vision'))
+            : models)
+        : models;
+
+      if (candidateModels.some((model) => model.id === current)) return;
+      if (candidateModels.length) {
+        settings.value[key] = candidateModels[0].id;
+        return;
+      }
+      if (!settings.value[key]) {
+        settings.value[key] = kind === 'vision'
+          ? (settings.value.llmModel || window.AI.defaults.visionModel)
+          : window.AI.defaults.model;
+      }
+    }
+
+    async function refreshModelOptions(kind, { silent = true } = {}) {
+      const endpoint = kind === 'vision' ? settings.value.visionEndpoint : settings.value.llmEndpoint;
+      const apiKey = kind === 'vision' ? settings.value.visionApiKey : settings.value.apiKey;
+      const optionsRef = kind === 'vision' ? visionModelOptions : llmModelOptions;
+      const statusRef = kind === 'vision' ? visionModelStatus : llmModelStatus;
+      const errorRef = kind === 'vision' ? visionModelError : llmModelError;
+
+      if (!endpoint) {
+        optionsRef.value = [];
+        statusRef.value = 'idle';
+        errorRef.value = '';
+        return { ok: true, models: [] };
+      }
+
+      statusRef.value = 'testing';
+      errorRef.value = '';
+      const result = await window.AI.testConnection(endpoint, apiKey);
+
+      if (result.ok) {
+        optionsRef.value = result.models || [];
+        statusRef.value = 'ok';
+        syncModelSelection(kind, optionsRef.value);
+      } else {
+        optionsRef.value = [];
+        statusRef.value = 'error';
+        errorRef.value = result.message || 'Unable to load models.';
+      }
+
+      if (!silent && result.message) {
+        showNotification(result.message);
+      }
+
+      return result;
+    }
+
+    let llmModelRefreshTimer = null;
+    let visionModelRefreshTimer = null;
 
     // ==================== Phase 9: Income & Bill Management ====================
     const incomeSources = ref([
@@ -297,6 +405,8 @@ const app = createApp({
       window.addEventListener('keydown', handleKeyboardShortcuts);
       // Phase 13: Load templates
       loadPhase13Templates();
+      await refreshModelOptions('llm');
+      await refreshModelOptions('vision');
       // Fetch AI insight on mount
       await fetchAIInsight();
     });
@@ -304,6 +414,8 @@ const app = createApp({
     // Clean up keyboard shortcuts on unmount
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', handleKeyboardShortcuts);
+      clearTimeout(llmModelRefreshTimer);
+      clearTimeout(visionModelRefreshTimer);
     });
 
     async function loadAllData() {
@@ -1386,7 +1498,7 @@ Keep it concise and actionable.`;
           {
             endpoint: settings.value.llmEndpoint,
             apiKey: settings.value.apiKey,
-            model: 'gpt-4-mini',
+            model: settings.value.llmModel || window.AI.defaults.model,
             temperature: 0.7,
             onDone: () => {},
           }
@@ -1431,7 +1543,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
           {
             endpoint: settings.value.llmEndpoint,
             apiKey: settings.value.apiKey,
-            model: 'gpt-4-mini',
+            model: settings.value.llmModel || window.AI.defaults.model,
             temperature: 0.3,
             signal: categoryPredictionAbortController.signal,
             onDone: () => {},
@@ -2219,21 +2331,23 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
     async function testConnections() {
       aiEndpointStatus.value = 'testing';
       try {
-        const mainOk = settings.value.llmEndpoint 
-          ? await window.AI.testConnection(settings.value.llmEndpoint, settings.value.apiKey)
-          : true;
-        const visionOk = settings.value.visionEndpoint
-          ? await window.AI.testConnection(settings.value.visionEndpoint, settings.value.visionApiKey)
-          : true;
+        const mainResult = await refreshModelOptions('llm');
+        const visionResult = await refreshModelOptions('vision');
+        const mainOk = settings.value.llmEndpoint ? mainResult.ok : true;
+        const visionOk = settings.value.visionEndpoint ? visionResult.ok : true;
 
         if (mainOk && visionOk) {
           aiEndpointStatus.value = 'ok';
-          showNotification('Connections successful!');
-          // Refresh AI insight if connection now works
+          const modelCount = (llmModelOptions.value.length || 0) + (visionModelOptions.value.length || 0);
+          showNotification(modelCount ? `Connections successful • ${modelCount} model${modelCount === 1 ? '' : 's'} discovered` : 'Connections successful!');
           await fetchAIInsight();
         } else {
           aiEndpointStatus.value = 'error';
-          showNotification('Connection failed');
+          const messages = [
+            !mainOk && settings.value.llmEndpoint ? (mainResult.message || 'LLM connection failed') : '',
+            !visionOk && settings.value.visionEndpoint ? (visionResult.message || 'Vision connection failed') : '',
+          ].filter(Boolean);
+          showNotification(messages.join(' • ') || 'Connection failed');
         }
       } catch (err) {
         aiEndpointStatus.value = 'error';
@@ -2316,7 +2430,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
     }
 
     function loadDemoData() {
-      if (confirm('🚀 Load demo data? This will replace existing data.')) {
+      if (confirm('🚀 Load demo data? This will replace existing data with 3 months of realistic transactions, budgets, goals, and bills.')) {
         if (window.SeedDataUtils) {
           // Create a proxy state object that includes all reactive refs
           const proxyState = {
@@ -2346,9 +2460,43 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
           
           window.SeedDataUtils.initializeSeedData(proxyState);
           saveAllData();
-          showNotification('✅ Demo data loaded! Explore the app features.');
+          showNotification('✅ Demo data loaded! Explore the dashboard, reports, budgets, and goals.');
         } else {
           showNotification('❌ Seed data utility not loaded');
+        }
+      }
+    }
+
+    function wipeDemoData() {
+      if (confirm('🗑️ Wipe all demo data? This will delete transactions, budgets, goals, and bills. Accounts and categories will be reset.')) {
+        if (window.SeedDataUtils) {
+          const proxyState = {
+            transactions,
+            accounts,
+            categories,
+            incomeSources,
+            budgets,
+            goals,
+            bills,
+            set transactions(val) { transactions.value = val; },
+            set accounts(val) { accounts.value = val; },
+            set categories(val) { categories.value = val; },
+            set incomeSources(val) { incomeSources.value = val; },
+            set budgets(val) { budgets.value = val; },
+            set goals(val) { goals.value = val; },
+            set bills(val) { bills.value = val; },
+            get transactions() { return transactions.value; },
+            get accounts() { return accounts.value; },
+            get categories() { return categories.value; },
+            get incomeSources() { return incomeSources.value; },
+            get budgets() { return budgets.value; },
+            get goals() { return goals.value; },
+            get bills() { return bills.value; },
+          };
+          
+          window.SeedDataUtils.wipeDemoData(proxyState);
+          saveAllData();
+          showNotification('✅ Demo data wiped. Ready for your own data.');
         }
       }
     }
@@ -3378,6 +3526,26 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       });
     }, { deep: true });
 
+    watch(
+      () => [settings.value.llmEndpoint, settings.value.apiKey],
+      () => {
+        clearTimeout(llmModelRefreshTimer);
+        llmModelRefreshTimer = setTimeout(() => {
+          refreshModelOptions('llm');
+        }, 600);
+      }
+    );
+
+    watch(
+      () => [settings.value.visionEndpoint, settings.value.visionApiKey],
+      () => {
+        clearTimeout(visionModelRefreshTimer);
+        visionModelRefreshTimer = setTimeout(() => {
+          refreshModelOptions('vision');
+        }, 600);
+      }
+    );
+
     // ==================== Storage ====================
     async function saveAllData() {
       await Promise.all([
@@ -3657,6 +3825,15 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       contextMenu,
       quickAdd,
       aiEndpointStatus,
+      llmModelStatus,
+      visionModelStatus,
+      llmModelOptions,
+      visionModelOptions,
+      llmModelError,
+      visionModelError,
+      selectableVisionModels,
+      selectedLlmModel,
+      selectedVisionModel,
 
       // Phase 1: State
       aiInsight,
@@ -3756,6 +3933,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       exportData,
       clearAllData,
       loadDemoData,
+      wipeDemoData,
       previousMonth,
       nextMonth,
       getProgressOffset,

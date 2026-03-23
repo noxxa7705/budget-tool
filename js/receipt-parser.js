@@ -50,7 +50,8 @@ window.ReceiptParser = {
     }
 
     const endpoint = config.visionEndpoint || config.llmEndpoint || window.AI.defaults.endpoint;
-    const apiKey = config.visionEndpoint ? config.visionApiKey : config.apiKey;
+    const apiKey = endpoint === config.visionEndpoint ? config.visionApiKey : config.apiKey;
+    const visionModel = config.visionModel || config.llmModel || RECEIPT_VISION_MODEL;
 
     if (!endpoint) {
       throw new Error('Vision endpoint not configured');
@@ -94,7 +95,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       {
         endpoint,
         apiKey,
-        model: config.model || RECEIPT_VISION_MODEL,
+        model: config.model || visionModel,
         temperature: 0.2,
         onChunk: (chunk) => {
           result += chunk;
@@ -153,7 +154,7 @@ Return ONLY the category name, nothing else.`;
         {
           endpoint: config.llmEndpoint || config.visionEndpoint || window.AI.defaults.endpoint,
           apiKey: config.apiKey || config.visionApiKey || '',
-          model: window.AI.defaults.model,
+          model: config.llmModel || window.AI.defaults.model,
           onChunk: (chunk) => {
             suggestion += chunk;
           },

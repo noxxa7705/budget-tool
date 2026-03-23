@@ -3,21 +3,179 @@ const DEFAULT_LLM_ENDPOINT = '';
 const DEFAULT_LLM_MODEL = 'gpt-4.1-mini';
 const DEFAULT_VISION_MODEL = 'gpt-4.1-mini';
 
+function formatCapabilityLabel(value) {
+  const labels = {
+    vision: 'Vision',
+    reasoning: 'Reasoning',
+    tools: 'Tools',
+    json: 'JSON',
+    audio: 'Audio',
+  };
+  return labels[value] || value;
+}
+
+function normalizeModalities(...values) {
+  const out = new Set();
+
+  const visit = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value === 'string') {
+      value
+        .split(/[,\s]+/)
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+        .forEach((item) => out.add(item));
+      return;
+    }
+    if (typeof value === 'object') {
+      Object.values(value).forEach(visit);
+    }
+  };
+
+  values.forEach(visit);
+  return Array.from(out);
+}
+
+function coerceNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function inferCapabilities(model) {
+  const raw = model || {};
+  const id = String(raw.id || raw.name || '').toLowerCase();
+  const capabilities = raw.capabilities || {};
+  const modalities = normalizeModalities(
+    raw.input_modalities,
+    raw.output_modalities,
+    raw.modalities,
+    capabilities.input_modalities,
+    capabilities.output_modalities,
+    capabilities.modalities,
+    raw.supported_modalities
+  );
+  const supported = normalizeModalities(
+    raw.supported_features,
+    raw.supported_generation_methods,
+    raw.features,
+    capabilities.supported_features,
+    capabilities.supported_generation_methods,
+    capabilities.features
+  );
+
+  const hasVision = Boolean(
+    raw.supports_vision ||
+      raw.vision ||
+      capabilities.vision ||
+      capabilities.supports_vision ||
+      modalities.some((item) => ['image', 'vision'].includes(item)) ||
+      /(?:vision|vl|llava|gpt-4o|gpt-4\.1|claude-3|claude-3\.5|claude-3\.7|gemini)/i.test(id)
+  );
+
+  const hasReasoning = Boolean(
+    raw.reasoning ||
+      raw.supports_reasoning ||
+      capabilities.reasoning ||
+      capabilities.supports_reasoning ||
+      supported.some((item) => ['reasoning', 'thinking'].includes(item)) ||
+      /(?:reason|thinking|deepseek-r1|\bqwq\b|\bo1\b|\bo3\b|\bo4\b|qwen3|\br1\b)/i.test(id)
+  );
+
+  const hasTools = Boolean(
+    raw.supports_tools ||
+      raw.supports_tool_calling ||
+      raw.function_calling ||
+      capabilities.tools ||
+      capabilities.supports_tools ||
+      capabilities.function_calling ||
+      supported.some((item) => ['tool', 'tools', 'function', 'function_calling', 'tool_calling'].includes(item))
+  );
+
+  const hasJson = Boolean(
+    raw.supports_json ||
+      raw.response_format === 'json' ||
+      capabilities.json ||
+      capabilities.supports_json ||
+      supported.some((item) => ['json', 'structured', 'structured_output', 'response_format'].includes(item))
+  );
+
+  const hasAudio = Boolean(
+    raw.supports_audio ||
+      capabilities.audio ||
+      capabilities.supports_audio ||
+      modalities.some((item) => ['audio', 'speech'].includes(item))
+  );
+
+  return [
+    hasVision ? 'vision' : null,
+    hasReasoning ? 'reasoning' : null,
+    hasTools ? 'tools' : null,
+    hasJson ? 'json' : null,
+    hasAudio ? 'audio' : null,
+  ].filter(Boolean);
+}
+
+function normalizeModel(raw) {
+  const id = String(raw?.id || raw?.name || '').trim();
+  if (!id) return null;
+
+  const capabilities = inferCapabilities(raw);
+  const contextWindow =
+    coerceNumber(raw.context_window) ||
+    coerceNumber(raw.max_context_length) ||
+    coerceNumber(raw.max_input_tokens) ||
+    coerceNumber(raw.max_tokens) ||
+    coerceNumber(raw.token_limit) ||
+    coerceNumber(raw?.capabilities?.context_window);
+  const promptRateLimit =
+    coerceNumber(raw.tpm) ||
+    coerceNumber(raw.tokens_per_minute) ||
+    coerceNumber(raw.prompt_tokens_per_minute) ||
+    coerceNumber(raw?.capabilities?.tpm);
+  const requestRateLimit =
+    coerceNumber(raw.rpm) ||
+    coerceNumber(raw.requests_per_minute) ||
+    coerceNumber(raw?.capabilities?.rpm);
+
+  const capabilityLabel = capabilities.length
+    ? capabilities.map(formatCapabilityLabel).join(', ')
+    : 'Text';
+
+  return {
+    id,
+    label: id,
+    dropdownLabel: `${id} — ${capabilityLabel}`,
+    capabilities,
+    contextWindow,
+    promptRateLimit,
+    requestRateLimit,
+    raw,
+  };
+}
+
 window.AI = {
   getConfig() {
     return {
       endpoint: localStorage.getItem('ai_endpoint') || DEFAULT_LLM_ENDPOINT,
       apiKey: localStorage.getItem('ai_key') || '',
+      model: localStorage.getItem('ai_model') || DEFAULT_LLM_MODEL,
       visionEndpoint: localStorage.getItem('ai_vision_endpoint') || '',
       visionApiKey: localStorage.getItem('ai_vision_key') || '',
+      visionModel: localStorage.getItem('ai_vision_model') || DEFAULT_VISION_MODEL,
     };
   },
 
   saveConfig(config) {
     localStorage.setItem('ai_endpoint', config.endpoint || DEFAULT_LLM_ENDPOINT);
     localStorage.setItem('ai_key', config.apiKey || '');
+    localStorage.setItem('ai_model', config.model || DEFAULT_LLM_MODEL);
     localStorage.setItem('ai_vision_endpoint', config.visionEndpoint || '');
     localStorage.setItem('ai_vision_key', config.visionApiKey || '');
+    localStorage.setItem('ai_vision_model', config.visionModel || DEFAULT_VISION_MODEL);
   },
 
   isConfigured() {
@@ -34,32 +192,69 @@ window.AI = {
   },
 
   async testConnection(endpoint, apiKey) {
-    if (!endpoint) return false;
+    if (!endpoint) {
+      return { ok: false, error: 'no_endpoint', message: 'No endpoint provided.', models: [] };
+    }
+
+    const normalized = this.normalizeEndpoint(endpoint);
+    if (window.location.protocol === 'https:' && normalized.startsWith('http://')) {
+      return {
+        ok: false,
+        error: 'mixed_content',
+        message: 'HTTPS page cannot call an HTTP AI endpoint. Use HTTPS or run locally.',
+        models: [],
+      };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     try {
-      const normalized = this.normalizeEndpoint(endpoint);
       const resp = await fetch(`${normalized}/models`, {
         method: 'GET',
         headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+        signal: controller.signal,
       });
-      return resp.ok;
-    } catch (_) {
-      return false;
+
+      let models = [];
+      let payload = null;
+      try {
+        payload = await resp.json();
+      } catch (_) {
+        payload = null;
+      }
+
+      if (resp.ok) {
+        models = Array.isArray(payload?.data)
+          ? payload.data.map(normalizeModel).filter(Boolean)
+          : [];
+      }
+
+      return {
+        ok: resp.ok,
+        status: resp.status,
+        error: resp.ok ? null : `http_${resp.status}`,
+        message: resp.ok
+          ? `Connected${models.length ? ` • ${models.length} model${models.length === 1 ? '' : 's'} discovered` : ''}`
+          : `Connection failed (HTTP ${resp.status})`,
+        models,
+        raw: payload,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err?.name === 'AbortError' ? 'timeout' : 'network_error',
+        message: err?.name === 'AbortError' ? 'Connection timed out.' : (err?.message || 'Connection failed.'),
+        models: [],
+      };
+    } finally {
+      clearTimeout(timeout);
     }
   },
 
   async getModels(endpoint, apiKey) {
-    if (!endpoint) return [];
-    try {
-      const normalized = this.normalizeEndpoint(endpoint);
-      const resp = await fetch(`${normalized}/models`, {
-        headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-      });
-      if (!resp.ok) return [];
-      const data = await resp.json();
-      return data.data || [];
-    } catch (_) {
-      return [];
-    }
+    const result = await this.testConnection(endpoint, apiKey);
+    return result.ok ? result.models : [];
   },
 
   async runAI(messages, options = {}) {
@@ -210,6 +405,7 @@ window.AI = {
 
     const endpoint = config.llmEndpoint || config.visionEndpoint || DEFAULT_LLM_ENDPOINT;
     const apiKey = endpoint === config.llmEndpoint ? config.apiKey : config.visionApiKey;
+    const model = config.llmModel || DEFAULT_LLM_MODEL;
 
     let result = '';
     await this.runAI(
@@ -227,7 +423,7 @@ window.AI = {
       {
         endpoint,
         apiKey,
-        model: DEFAULT_LLM_MODEL,
+        model,
         onChunk: (chunk) => {
           result += chunk;
         },
