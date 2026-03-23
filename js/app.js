@@ -380,9 +380,37 @@ const app = createApp({
     }
 
     function setupServiceWorker() {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+      if (!('serviceWorker' in navigator)) {
+        return;
       }
+
+      let hasRefreshedForNewWorker = false;
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (hasRefreshedForNewWorker) return;
+        hasRefreshedForNewWorker = true;
+        window.location.reload();
+      });
+
+      navigator.serviceWorker.register('sw.js').then((registration) => {
+        registration.update().catch(() => {});
+
+        function wireWorker(worker) {
+          if (!worker) return;
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              worker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        }
+
+        wireWorker(registration.installing);
+        wireWorker(registration.waiting);
+
+        registration.addEventListener('updatefound', () => {
+          wireWorker(registration.installing);
+        });
+      }).catch(() => {});
     }
 
     function applyTheme() {

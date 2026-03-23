@@ -78,6 +78,11 @@
   }
 
   /* FAB positioning for mobile */
+  .desktop-nav-wrap,
+  .nav-primary-action {
+    display: none !important;
+  }
+
   .fab {
     display: flex;
     bottom: calc(var(--bottom-nav-h) + 12px);
