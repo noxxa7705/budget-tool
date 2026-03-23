@@ -2011,11 +2011,6 @@
       </div>
     </div>
   </div>
-</div>
-    <button @click="editTransaction(contextMenu.txn)">Edit</button>
-    <button @click="deleteTransaction(contextMenu.txn.id)">Delete</button>
-    <button @click="duplicateTransaction(contextMenu.txn)">Duplicate</button>
-  </div>
 
   <!-- Phase 13: Enhanced Transaction Edit Modal -->
   <div v-if="phase13.showEditModal" class="modal-overlay" @click.self="phase13.showEditModal = false">
