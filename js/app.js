@@ -80,13 +80,41 @@ const app = createApp({
     const syncModalVisible = ref(false);
     const syncToken = ref('');
     const syncExportData = ref('');
-    
+
     // Forecast state
     const forecastData = reactive({
       predictedEndBalance: 0,
       daysInMonth: 0,
       daysElapsed: 0,
       averageDailySpend: 0,
+    });
+
+    // ==================== Phase 7: Mobile-First Polish ====================
+    // Gesture and touch state
+    const touchState = reactive({
+      startX: 0,
+      startY: 0,
+      currentX: 0,
+      currentY: 0,
+      swipingTransactionId: null,
+      swipeOffset: 0,
+      pullToRefreshActive: false,
+      pullDistance: 0,
+    });
+
+    // Gesture hints state
+    const gestureHints = reactive({
+      showSwipeHint: !localStorage.getItem('gesture-hints-dismissed'),
+      showPullHint: !localStorage.getItem('pull-refresh-hint-dismissed'),
+      tapCount: 0,
+      lastTapTime: 0,
+    });
+
+    // Pull-to-refresh state
+    const pullToRefresh = reactive({
+      isRefreshing: false,
+      lastRefreshTime: 0,
+      threshold: 80,
     });
 
     // ==================== Phase 1: UX Improvements State ====================
@@ -889,6 +917,8 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         transactions.value.push(txn);
         updateAccountBalance(quickAdd.account, parseFloat(quickAdd.amount), quickAdd.type === 'expense');
         recordAction('add_transaction', { txn });
+        // Phase 7: Haptic feedback on transaction add
+        triggerHaptic([50, 30, 100]);
         showNotification('Transaction added!');
       }
       
@@ -955,6 +985,8 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       transactions.value = transactions.value.filter(t => t.id !== id);
       saveAllData();
       contextMenu.visible = false;
+      // Phase 7: Haptic feedback on delete
+      triggerHaptic([100, 50, 100, 50, 150]);
       showNotification('Transaction deleted');
       
       // Refresh AI insight
@@ -1450,6 +1482,147 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       return { expenses, income, count: txns.length };
     }
 
+    // ==================== Phase 7: Mobile-First Gesture Functions ====================
+    
+    // Haptic feedback utility
+    function triggerHaptic(duration = 20, pattern = null) {
+      if (navigator.vibrate) {
+        if (pattern) {
+          navigator.vibrate(pattern);
+        } else {
+          navigator.vibrate(duration);
+        }
+      }
+    }
+
+    // Swipe gesture handler
+    function handleTransactionSwipe(txnId, event) {
+      const touch = event.touches[0];
+      
+      if (event.type === 'touchstart') {
+        touchState.startX = touch.clientX;
+        touchState.startY = touch.clientY;
+        touchState.swipingTransactionId = txnId;
+        touchState.swipeOffset = 0;
+      } else if (event.type === 'touchmove' && touchState.swipingTransactionId === txnId) {
+        touchState.currentX = touch.clientX;
+        const deltaX = touch.clientX - touchState.startX;
+        const deltaY = Math.abs(touch.clientY - touchState.startY);
+        
+        // Only consider horizontal swipe if deltaX > deltaY (more horizontal than vertical)
+        if (Math.abs(deltaX) > deltaY) {
+          event.preventDefault();
+          touchState.swipeOffset = deltaX;
+        }
+      } else if (event.type === 'touchend') {
+        handleSwipeEnd(txnId);
+      }
+    }
+
+    // Handle swipe completion
+    function handleSwipeEnd(txnId) {
+      const swipeThreshold = 50;
+      
+      if (touchState.swipeOffset < -swipeThreshold) {
+        // Swipe left: delete
+        triggerHaptic([50, 30, 50]); // Pattern: vibrate, pause, vibrate
+        if (confirm('Delete this transaction?')) {
+          deleteTransaction(txnId);
+          triggerHaptic(100);
+        }
+      } else if (touchState.swipeOffset > swipeThreshold) {
+        // Swipe right: quick action menu
+        triggerHaptic(30);
+        const txn = transactions.value.find(t => t.id === txnId);
+        if (txn) showTxnMenu(txn);
+      }
+      
+      // Reset touch state
+      touchState.swipingTransactionId = null;
+      touchState.swipeOffset = 0;
+    }
+
+    // Pull-to-refresh handler
+    function handlePullToRefresh(event) {
+      const touch = event.touches[0];
+      const scrollElement = event.currentTarget;
+      
+      if (event.type === 'touchstart' && scrollElement.scrollTop === 0) {
+        touchState.startY = touch.clientY;
+        pullToRefresh.isRefreshing = false;
+      } else if (event.type === 'touchmove' && scrollElement.scrollTop === 0) {
+        const pullDistance = touch.clientY - touchState.startY;
+        
+        if (pullDistance > 0) {
+          touchState.pullDistance = pullDistance;
+          pullToRefresh.isRefreshing = pullDistance >= pullToRefresh.threshold;
+          
+          // Show hint on first pull
+          if (pullDistance > 10 && gestureHints.showPullHint && pullDistance < 20) {
+            // Hint is being shown in UI
+          }
+        }
+      } else if (event.type === 'touchend') {
+        if (pullToRefresh.isRefreshing) {
+          triggerHaptic(50);
+          performRefresh();
+        }
+        touchState.pullDistance = 0;
+      }
+    }
+
+    // Perform refresh action
+    function performRefresh() {
+      pullToRefresh.isRefreshing = true;
+      
+      // Simulate API call or reload UI data
+      setTimeout(() => {
+        pullToRefresh.isRefreshing = false;
+        pullToRefresh.lastRefreshTime = Date.now();
+        triggerHaptic([50, 30, 50, 30, 100]); // Success pattern
+        showNotification('Data refreshed! ✨');
+        
+        // Reload transactions from storage
+        loadAllData();
+      }, 800);
+    }
+
+    // Dismiss gesture hints with tap counting
+    function dismissGestureHint(hintType) {
+      const now = Date.now();
+      
+      // Count taps for analytics
+      if (now - gestureHints.lastTapTime < 300) {
+        gestureHints.tapCount++;
+      } else {
+        gestureHints.tapCount = 1;
+      }
+      gestureHints.lastTapTime = now;
+      
+      if (hintType === 'swipe') {
+        gestureHints.showSwipeHint = false;
+        localStorage.setItem('gesture-hints-dismissed', 'true');
+        triggerHaptic(30);
+      } else if (hintType === 'pull') {
+        gestureHints.showPullHint = false;
+        localStorage.setItem('pull-refresh-hint-dismissed', 'true');
+        triggerHaptic(30);
+      }
+    }
+
+    // Focus number pad for amount inputs (mobile UX)
+    function focusAmountInput(ref) {
+      if (ref && typeof ref.focus === 'function') {
+        ref.focus();
+        // Trigger virtual keyboard on mobile
+        setTimeout(() => {
+          if (document.activeElement === ref) {
+            ref.setSelectionRange(ref.value.length, ref.value.length);
+          }
+        }, 100);
+      }
+    }
+
     // Export data for device sync
     function generateSyncToken() {
       const data = {
@@ -1670,6 +1843,17 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       syncModalVisible,
       syncToken,
       syncExportData,
+
+      // Phase 7: Mobile-First Polish
+      touchState,
+      gestureHints,
+      pullToRefresh,
+      handleTransactionSwipe,
+      handlePullToRefresh,
+      dismissGestureHint,
+      performRefresh,
+      triggerHaptic,
+      focusAmountInput,
     };
   },
 });

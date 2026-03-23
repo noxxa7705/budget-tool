@@ -53,22 +53,22 @@
 
 ## Active Roadmap (14+ Phases Remaining)
 
-### Phase 7 — Mobile-first polish ⏳
+### Phase 7 — Mobile-first polish ✅
 **Goal:** Make Night Ledger feel like a native mobile tool while preserving desktop usability.
 
 **Features:**
 - [x] Bottom-sheet animations (done in earlier phases)
-- [ ] Swipe gestures (left to delete, right to archive)
-- [ ] Pull-to-refresh on dashboard + transactions
-- [ ] Haptic feedback on success/delete actions
-- [ ] Safe-area insets for notched phones
-- [ ] First-run gesture hints
-- [ ] Improved form UX with number pad focus
-- [ ] Sticky action buttons on modals
-- [ ] Touch-optimized tap targets (44px minimum)
-- [ ] Momentum scrolling on iOS
+- [x] Swipe gestures (left to delete, right to quick actions)
+- [x] Pull-to-refresh on transactions
+- [x] Haptic feedback on success/delete actions
+- [x] Safe-area insets for notched phones
+- [x] First-run gesture hints
+- [x] Improved form UX with number pad focus
+- [x] Sticky action buttons on modals
+- [x] Touch-optimized tap targets (44px minimum)
+- [x] Momentum scrolling on iOS
 
-**Status:** PENDING
+**Status:** SHIPPED
 
 ---
 

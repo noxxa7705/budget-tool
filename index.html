@@ -15,6 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/mobile.css">
+  <link rel="stylesheet" href="css/phase7-mobile.css">
 </head>
 <body>
 
@@ -33,46 +34,46 @@
   <div class="content-area">
     
     <!-- Dashboard Tab -->
-    <div v-show="activeTab === 'dashboard'\" class=\"tab-content\">
-      <div class=\"dashboard\">
+    <div v-show="activeTab === 'dashboard'" class="tab-content">
+      <div class="dashboard">
         <!-- AI Insight Banner -->
-        <div v-if=\"aiInsight || aiInsightLoading\" class=\"ai-insight-banner\">
-          <div class=\"insight-icon\">✨</div>
-          <div class=\"insight-content\">
-            <div class=\"insight-label\">AI Insight</div>
-            <div v-if=\"aiInsightLoading\" class=\"insight-text loading\">Analyzing spending patterns...</div>
-            <div v-else class=\"insight-text\">{{ aiInsight }}</div>
+        <div v-if="aiInsight || aiInsightLoading" class="ai-insight-banner">
+          <div class="insight-icon">✨</div>
+          <div class="insight-content">
+            <div class="insight-label">AI Insight</div>
+            <div v-if="aiInsightLoading" class="insight-text loading">Analyzing spending patterns...</div>
+            <div v-else class="insight-text">{{ aiInsight }}</div>
           </div>
-          <button @click=\"fetchAIInsight\" class=\"insight-refresh\" :disabled=\"aiInsightLoading\" title=\"Refresh insight\">🔄</button>
+          <button @click="fetchAIInsight" class="insight-refresh" :disabled="aiInsightLoading" title="Refresh insight">🔄</button>
         </div>
 
         <!-- Summary cards -->
-        <div class=\"summary-cards\">
-          <div class=\"card card-income\">
-            <div class=\"card-header\">
-              <div class=\"card-label\">Income ({{ currentMonth }})</div>
-              <span class=\"delta-badge\" :class=\"monthlyDelta.income.direction\">
+        <div class="summary-cards">
+          <div class="card card-income">
+            <div class="card-header">
+              <div class="card-label">Income ({{ currentMonth }})</div>
+              <span class="delta-badge" :class="monthlyDelta.income.direction">
                 {{ monthlyDelta.income.direction === 'up' ? '↑' : monthlyDelta.income.direction === 'down' ? '↓' : '→' }}
                 {{ Math.abs(monthlyDelta.income.delta).toFixed(1) }}%
               </span>
             </div>
-            <div class=\"card-value\">{{ formatCurrency(monthlyIncome) }}</div>
-            <div v-if=\"sparklineData.income\" v-html=\"generateSparklineSVG(sparklineData.income, '#10b981', 30)\" class=\"card-sparkline\"></div>
+            <div class="card-value">{{ formatCurrency(monthlyIncome) }}</div>
+            <div v-if="sparklineData.income" v-html="generateSparklineSVG(sparklineData.income, '#10b981', 30)" class="card-sparkline"></div>
           </div>
-          <div class=\"card card-expense\">
-            <div class=\"card-header\">
-              <div class=\"card-label\">Expenses ({{ currentMonth }})</div>
-              <span class=\"delta-badge\" :class=\"monthlyDelta.expenses.direction\">
+          <div class="card card-expense">
+            <div class="card-header">
+              <div class="card-label">Expenses ({{ currentMonth }})</div>
+              <span class="delta-badge" :class="monthlyDelta.expenses.direction">
                 {{ monthlyDelta.expenses.direction === 'up' ? '↑' : monthlyDelta.expenses.direction === 'down' ? '↓' : '→' }}
                 {{ Math.abs(monthlyDelta.expenses.delta).toFixed(1) }}%
               </span>
             </div>
-            <div class=\"card-value\">{{ formatCurrency(monthlyExpenses) }}</div>
-            <div v-if=\"sparklineData.expenses\" v-html=\"generateSparklineSVG(sparklineData.expenses, '#ef4444', 30)\" class=\"card-sparkline\"></div>
+            <div class="card-value">{{ formatCurrency(monthlyExpenses) }}</div>
+            <div v-if="sparklineData.expenses" v-html="generateSparklineSVG(sparklineData.expenses, '#ef4444', 30)" class="card-sparkline"></div>
           </div>
-          <div class=\"card card-balance\">
-            <div class=\"card-label\">Net Worth</div>
-            <div class=\"card-value\">{{ formatCurrency(netWorth) }}</div>
+          <div class="card card-balance">
+            <div class="card-label">Net Worth</div>
+            <div class="card-value">{{ formatCurrency(netWorth) }}</div>
           </div>
         </div>
 
@@ -142,65 +143,51 @@
         </div>
 
         <!-- Phase 3: Filter Panel -->
-        <div v-if=\"showFilterModal\" class=\"filter-panel\">
-          <div class=\"filter-section\">
-            <h4 class=\"filter-label\">Date Range</h4>
-            <div class=\"filter-row\">
-              <input v-model=\"filterState.dateFrom\" type=\"date\" class=\"filter-input\" placeholder=\"From\">
-              <span class=\"filter-separator\">→</span>
-              <input v-model=\"filterState.dateTo\" type=\"date\" class=\"filter-input\" placeholder=\"To\">
+        <div v-if="showFilterModal" class="filter-panel">
+          <div class="filter-section">
+            <h4 class="filter-label">Date Range</h4>
+            <div class="filter-row">
+              <input v-model="filterState.dateFrom" type="date" class="filter-input" placeholder="From">
+              <span class="filter-separator">→</span>
+              <input v-model="filterState.dateTo" type="date" class="filter-input" placeholder="To">
             </div>
           </div>
 
-          <div class=\"filter-section\">
-            <h4 class=\"filter-label\">Type</h4>
-            <div class=\"filter-chips\">
-              <button :class=\"['filter-chip', { active: filterState.type === '' }]\" @click=\"filterState.type = ''\">\n                All\n              </button>
-              <button :class=\"['filter-chip', { active: filterState.type === 'income' }]\" @click=\"filterState.type = 'income'\">\n                💰 Income\n              </button>
-              <button :class=\"['filter-chip', { active: filterState.type === 'expense' }]\" @click=\"filterState.type = 'expense'\">\n                💸 Expense\n              </button>
+          <div class="filter-section">
+            <h4 class="filter-label">Type</h4>
+            <div class="filter-chips">
+              <button :class="['filter-chip', { active: filterState.type === '' }]" @click="filterState.type = ''">All</button>
+              <button :class="['filter-chip', { active: filterState.type === 'income' }]" @click="filterState.type = 'income'">Income</button>
+              <button :class="['filter-chip', { active: filterState.type === 'expense' }]" @click="filterState.type = 'expense'">Expense</button>
             </div>
           </div>
 
-          <div class=\"filter-section\">
-            <h4 class=\"filter-label\">Account</h4>
-            <select v-model=\"filterState.account\" class=\"filter-select\">
-              <option value=\"\">All Accounts</option>
-              <option v-for=\"acc in accounts\" :key=\"acc.id\" :value=\"acc.id\">\n                {{ acc.name }}\n              </option>\n            </select>\n          </div>
-
-          <div class=\"filter-section\">
-            <h4 class=\"filter-label\">Category</h4>
-            <select v-model=\"filterState.category\" class=\"filter-select\">
-              <option value=\"\">All Categories</option>
-              <option v-for=\"cat in categories\" :key=\"cat.id\" :value=\"cat.id\">\n                {{ cat.emoji }} {{ cat.name }}\n              </option>\n            </select>
+          <div class="filter-section">
+            <h4 class="filter-label">Account</h4>
+            <select v-model="filterState.account" class="filter-select">
+              <option value="">All Accounts</option>
+              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
+            </select>
           </div>
 
-          <!-- Phase 4: Tags Filter -->
-          <div v-if=\"allTags.length > 0\" class=\"filter-section\">
-            <h4 class=\"filter-label\">Tags</h4>
-            <div class=\"filter-chips\">
-              <button 
-                v-for=\"tag in allTags\" 
-                :key=\"tag\"
-                :class=\"['filter-chip', { active: filterState.tags.includes(tag) }]\"
-                @click=\"() => {
-                  if (filterState.tags.includes(tag)) {
-                    filterState.tags = filterState.tags.filter(t => t !== tag);
-                  } else {
-                    filterState.tags.push(tag);
-                  }
-                }\">\n                🏷️ {{ tag }}\n              </button>\n            </div>\n          </div>
-
-          <div class=\"filter-footer\">
-            <button @click=\"clearAllFilters\" class=\"btn-secondary btn-sm\">Clear All</button>
-            <button @click=\"showFilterModal = false\" class=\"btn-primary btn-sm\">Done</button>
-          </div>
-        </div>
+          <div class="filter-section">
+            <h4 class="filter-label">Category</h4>
             <select v-model="filterState.category" class="filter-select">
               <option value="">All Categories</option>
-              <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                {{ cat.emoji }} {{ cat.name }}
-              </option>
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.emoji }} {{ cat.name }}</option>
             </select>
+          </div>
+
+          <div v-if="allTags.length > 0" class="filter-section">
+            <h4 class="filter-label">Tags</h4>
+            <div class="filter-chips">
+              <button
+                v-for="tag in allTags"
+                :key="tag"
+                :class="['filter-chip', { active: filterState.tags.includes(tag) }]"
+                @click="filterState.tags.includes(tag) ? filterState.tags = filterState.tags.filter(t => t !== tag) : filterState.tags.push(tag)"
+              >🏷️ {{ tag }}</button>
+            </div>
           </div>
 
           <div class="filter-footer">
@@ -220,23 +207,48 @@
           <p>No transactions found</p>
           <p class="text-muted" v-if="activeFilterCount > 0 || filterState.text">Try adjusting your filters</p>
         </div>
-        <div v-else class=\"transactions-list\">
-          <div class=\"txn-group\" v-for=\"group in groupedTransactions\" :key=\"group.date\">
-            <div class=\"txn-group-header\">{{ formatDate(group.date) }}</div>
-            <div v-for=\"txn in group.txns\" :key=\"txn.id\" class=\"txn-row\" @contextmenu.prevent=\"showTxnMenu(txn)\">
-              <div class=\"txn-info\">
-                <div class=\"txn-desc\">{{ txn.description }}</div>
-                <div class=\"txn-category\">
+        <!-- Phase 7: Pull-to-refresh indicator -->
+        <div v-if="pullToRefresh.isRefreshing" class="pull-refresh-indicator">
+          <div class="refresh-spinner">⟳</div>
+          <span>Refreshing...</span>
+        </div>
+        
+        <!-- Phase 7: Gesture hints -->
+        <div v-if="gestureHints.showSwipeHint" class="gesture-hint swipe-hint" @click="dismissGestureHint('swipe')">
+          <span>👆 Swipe left to delete, right for menu</span>
+          <button class="hint-close" type="button">✕</button>
+        </div>
+        <div v-if="gestureHints.showPullHint" class="gesture-hint pull-hint" @click="dismissGestureHint('pull')">
+          <span>↕ Pull down from the top to refresh</span>
+          <button class="hint-close" type="button">✕</button>
+        </div>
+
+        <div class="transactions-list" @touchstart="handlePullToRefresh" @touchmove="handlePullToRefresh" @touchend="handlePullToRefresh">
+          <div class="txn-group" v-for="group in groupedTransactions" :key="group.date">
+            <div class="txn-group-header">{{ formatDate(group.date) }}</div>
+            <div 
+              v-for="txn in group.txns" 
+              :key="txn.id" 
+              class="txn-row" 
+              @contextmenu.prevent="showTxnMenu(txn)"
+              @touchstart="handleTransactionSwipe(txn.id, $event)"
+              @touchmove="handleTransactionSwipe(txn.id, $event)"
+              @touchend="handleTransactionSwipe(txn.id, $event)"
+              :style="{ transform: touchState.swipingTransactionId === txn.id ? `translateX(${touchState.swipeOffset}px)` : 'translateX(0)' }"
+            >
+              <div class="txn-info">
+                <div class="txn-desc">{{ txn.description }}</div>
+                <div class="txn-category">
                   {{ categories.find(c => c.id === txn.category)?.emoji }} 
                   {{ categories.find(c => c.id === txn.category)?.name }} • 
                   {{ accounts.find(a => a.id === txn.account)?.name }}
                 </div>
                 <!-- Phase 4: Display Tags -->
-                <div v-if=\"txn.tags && txn.tags.length > 0\" class=\"txn-tags\">
-                  <span v-for=\"tag in txn.tags\" :key=\"tag\" class=\"txn-tag\">🏷️ {{ tag }}</span>
+                <div v-if="txn.tags && txn.tags.length > 0" class="txn-tags">
+                  <span v-for="tag in txn.tags" :key="tag" class="txn-tag">🏷️ {{ tag }}</span>
                 </div>
               </div>
-              <div class=\"txn-amount\" :class=\"txn.type === 'expense' ? 'negative' : 'positive'\">
+              <div class="txn-amount" :class="txn.type === 'expense' ? 'negative' : 'positive'">
                 {{ txn.type === 'expense' ? '-' : '+' }}{{ formatCurrency(Math.abs(txn.amount)) }}
               </div>
             </div>
@@ -246,46 +258,46 @@
     </div>
 
     <!-- Budget Tab -->
-    <div v-show=\"activeTab === 'budget'\" class=\"tab-content\">
-      <div class=\"budget-view\">
-        <div class=\"budget-month\">
-          <button @click=\"previousMonth\" class=\"btn-nav\">&lt;</button>
-          <span class=\"month-label\">{{ currentMonth }}</span>
-          <button @click=\"nextMonth\" class=\"btn-nav\">&gt;</button>
+    <div v-show="activeTab === 'budget'" class="tab-content">
+      <div class="budget-view">
+        <div class="budget-month">
+          <button @click="previousMonth" class="btn-nav">&lt;</button>
+          <span class="month-label">{{ currentMonth }}</span>
+          <button @click="nextMonth" class="btn-nav">&gt;</button>
         </div>
 
         <!-- Phase 2: Budget Suggestion Card -->
-        <div v-if=\"Object.keys(suggestedBudgets).length > 0\" class=\"suggestion-banner\">
-          <div class=\"suggestion-header\">
-            <span class=\"suggestion-icon\">💡</span>
-            <div class=\"suggestion-content\">
-              <div class=\"suggestion-label\">Smart Budget Suggestions</div>
-              <div class=\"suggestion-text\">Based on your last 3 months of spending (average + 20% buffer)</div>
+        <div v-if="Object.keys(suggestedBudgets).length > 0" class="suggestion-banner">
+          <div class="suggestion-header">
+            <span class="suggestion-icon">💡</span>
+            <div class="suggestion-content">
+              <div class="suggestion-label">Smart Budget Suggestions</div>
+              <div class="suggestion-text">Based on your last 3 months of spending (average + 20% buffer)</div>
             </div>
           </div>
         </div>
 
-        <div class=\"budget-list\">
-          <div v-for=\"budget in budgets\" :key=\"budget.id\" class=\"budget-card\">
-            <div class=\"budget-header\">
-              <span class=\"budget-category\">{{ budget.emoji }} {{ budget.name }}</span>
-              <span class=\"budget-amount\">{{ formatCurrency(budget.spent) }} / {{ formatCurrency(budget.limit) }}</span>
+        <div class="budget-list">
+          <div v-for="budget in budgets" :key="budget.id" class="budget-card">
+            <div class="budget-header">
+              <span class="budget-category">{{ budget.emoji }} {{ budget.name }}</span>
+              <span class="budget-amount">{{ formatCurrency(budget.spent) }} / {{ formatCurrency(budget.limit) }}</span>
             </div>
-            <div class=\"budget-bar\">
-              <div class=\"bar-fill\" :style=\"{ width: Math.min(100, (budget.spent / budget.limit) * 100) + '%', backgroundColor: budget.color }\"></div>
+            <div class="budget-bar">
+              <div class="bar-fill" :style="{ width: Math.min(100, (budget.spent / budget.limit) * 100) + '%', backgroundColor: budget.color }"></div>
             </div>
-            <div class=\"budget-footer\">
-              <span v-if=\"budget.spent < budget.limit\" class=\"budget-remaining\">{{ formatCurrency(budget.limit - budget.spent) }} remaining</span>
-              <span v-else class=\"budget-over\">{{ formatCurrency(budget.spent - budget.limit) }} over</span>
+            <div class="budget-footer">
+              <span v-if="budget.spent < budget.limit" class="budget-remaining">{{ formatCurrency(budget.limit - budget.spent) }} remaining</span>
+              <span v-else class="budget-over">{{ formatCurrency(budget.spent - budget.limit) }} over</span>
             </div>
             <!-- Phase 2: Show suggested budget comparison -->
-            <div v-if=\"suggestedBudgets[budget.categoryId]\" class=\"budget-suggestion\">
-              <div class=\"suggestion-label\">Suggested: {{ formatCurrency(suggestedBudgets[budget.categoryId]) }}</div>
-              <div class=\"suggestion-comparison\" :class=\"budget.limit >= suggestedBudgets[budget.categoryId] ? 'above' : 'below'\">
-                <span v-if=\"budget.limit >= suggestedBudgets[budget.categoryId]\" class=\"comparison-text\">
+            <div v-if="suggestedBudgets[budget.categoryId]" class="budget-suggestion">
+              <div class="suggestion-label">Suggested: {{ formatCurrency(suggestedBudgets[budget.categoryId]) }}</div>
+              <div class="suggestion-comparison" :class="budget.limit >= suggestedBudgets[budget.categoryId] ? 'above' : 'below'">
+                <span v-if="budget.limit >= suggestedBudgets[budget.categoryId]" class="comparison-text">
                   ✓ {{ formatCurrency(budget.limit - suggestedBudgets[budget.categoryId]) }} above suggestion
                 </span>
-                <span v-else class=\"comparison-text\">
+                <span v-else class="comparison-text">
                   ↓ {{ formatCurrency(suggestedBudgets[budget.categoryId] - budget.limit) }} below suggestion
                 </span>
               </div>
@@ -296,39 +308,39 @@
     </div>
 
     <!-- Goals Tab -->
-    <div v-show=\"activeTab === 'goals'\" class=\"tab-content\">
-      <div class=\"goals-view\">
-        <div class=\"goals-list\">
-          <div v-for=\"egoal in enhancedGoals\" :key=\"egoal.id\" class=\"goal-card\">
-            <div class=\"goal-header\">
-              <span class=\"goal-name\">{{ egoal.name }}</span>
-              <span class=\"goal-target\">{{ formatCurrency(egoal.current) }} / {{ formatCurrency(egoal.target) }}</span>
+    <div v-show="activeTab === 'goals'" class="tab-content">
+      <div class="goals-view">
+        <div class="goals-list">
+          <div v-for="egoal in enhancedGoals" :key="egoal.id" class="goal-card">
+            <div class="goal-header">
+              <span class="goal-name">{{ egoal.name }}</span>
+              <span class="goal-target">{{ formatCurrency(egoal.current) }} / {{ formatCurrency(egoal.target) }}</span>
             </div>
-            <div class=\"progress-ring-container\">
-              <svg class=\"progress-ring\" viewBox=\"0 0 100 100\">
-                <circle class=\"progress-bg\" cx=\"50\" cy=\"50\" r=\"45\"></circle>
-                <circle class=\"progress-fill\" cx=\"50\" cy=\"50\" r=\"45\" :style=\"{ strokeDashoffset: getProgressOffset(egoal) }\"></circle>
+            <div class="progress-ring-container">
+              <svg class="progress-ring" viewBox="0 0 100 100">
+                <circle class="progress-bg" cx="50" cy="50" r="45"></circle>
+                <circle class="progress-fill" cx="50" cy="50" r="45" :style="{ strokeDashoffset: getProgressOffset(egoal) }"></circle>
               </svg>
-              <div class=\"progress-text\">{{ Math.round(egoal.progress) }}%</div>
+              <div class="progress-text">{{ Math.round(egoal.progress) }}%</div>
             </div>
 
             <!-- Phase 5: Milestone badges -->
-            <div class=\"milestone-badges\">
-              <span v-for=\"milestone in egoal.milestones\" :key=\"milestone.percent\" class=\"milestone\" :class=\"{ reached: milestone.reached }\">
+            <div class="milestone-badges">
+              <span v-for="milestone in egoal.milestones" :key="milestone.percent" class="milestone" :class="{ reached: milestone.reached }">
                 {{ milestone.percent }}%
               </span>
             </div>
 
-            <div class=\"goal-info\">
-              <p v-if=\"egoal.targetDate\">Target: {{ formatDate(egoal.targetDate) }}</p>
+            <div class="goal-info">
+              <p v-if="egoal.targetDate">Target: {{ formatDate(egoal.targetDate) }}</p>
               <p>Monthly: {{ formatCurrency(egoal.monthlyContribution) }}</p>
               <!-- Phase 5: Auto-calculated time-to-goal -->
-              <p class=\"goal-forecast\" :class=\"{ ontrack: egoal.isOnTrack, offtrack: !egoal.isOnTrack }\">
-                <span v-if=\"egoal.isOnTrack\">✓ On track - {{ Math.round(egoal.projectedDaysToGoal) }} days to goal</span>
+              <p class="goal-forecast" :class="{ ontrack: egoal.isOnTrack, offtrack: !egoal.isOnTrack }">
+                <span v-if="egoal.isOnTrack">✓ On track - {{ Math.round(egoal.projectedDaysToGoal) }} days to goal</span>
                 <span v-else>⚠ Behind - {{ Math.round(egoal.projectedDaysToGoal) }} days projected</span>
               </p>
               <!-- Phase 5: Streak badges -->
-              <p class=\"goal-streak\">🔥 {{ egoal.streak }} week streak</p>
+              <p class="goal-streak">🔥 {{ egoal.streak }} week streak</p>
             </div>
           </div>
         </div>
@@ -479,23 +491,35 @@
     <!-- Settings Tab -->
     <div v-show="activeTab === 'settings'" class="tab-content">
       <div class="settings-view">
-        <div class=\"settings-section\">
+        <div class="settings-section">
           <h3>Display</h3>
-          <div class=\"setting-row\">
+          <div class="setting-row">
             <label>Currency</label>
-            <select v-model=\"settings.currency\" class=\"select-input\">
-              <option value=\"USD\">USD ($)</option>
-              <option value=\"EUR\">EUR (€)</option>
-              <option value=\"GBP\">GBP (£)</option>
-              <option value=\"JPY\">JPY (¥)</option>
+            <select v-model="settings.currency" class="select-input">
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="JPY">JPY (¥)</option>
             </select>
           </div>
-          <div class=\"setting-row\">
+          <div class="setting-row">
             <label>Theme</label>
-            <div class=\"theme-toggle-row\">
+            <div class="theme-toggle-row">
               <button 
-                :class=\"['theme-toggle-btn', { active: settings.theme === 'dark' }]\"
-                @click=\"settings.theme = 'dark'\"\n                title=\"Dark mode\">\n                🌙 Dark\n              </button>\n              <button \n                :class=\"['theme-toggle-btn', { active: settings.theme === 'light' }]\"\n                @click=\"settings.theme = 'light'\"\n                title=\"Light mode\">\n                ☀️ Light\n              </button>\n            </div>\n          </div>\n        </div>
+                :class="['theme-toggle-btn', { active: settings.theme === 'dark' }]"
+                @click="settings.theme = 'dark'"
+                title="Dark mode">
+                🌙 Dark
+              </button>
+              <button 
+                :class="['theme-toggle-btn', { active: settings.theme === 'light' }]"
+                @click="settings.theme = 'light'"
+                title="Light mode">
+                ☀️ Light
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="settings-section">
           <h3>AI & LLM</h3>
@@ -520,7 +544,7 @@
           <button @click="testConnections" class="btn-primary">Test Connections</button>
         </div>
 
-        <div class=\"settings-section\">
+        <div class="settings-section">
                   <div class="settings-section">
           <h3>Device Sync (Phase 6)</h3>
           <p class="text-muted">Export/import your data as encrypted tokens between devices. No server required.</p>
@@ -529,10 +553,10 @@
 
         <div class="settings-section">
           <h3>Data</h3>
-          <button @click=\"exportAsCSV\" class=\"btn-secondary\">📊 Export as CSV</button>
-          <button @click=\"exportData\" class=\"btn-secondary\">Export as JSON</button>
-          <button @click=\"showImportModal = true\" class=\"btn-secondary\">Import from JSON</button>
-          <button @click=\"clearAllData\" class=\"btn-danger\">Clear All Data</button>
+          <button @click="exportAsCSV" class="btn-secondary">📊 Export as CSV</button>
+          <button @click="exportData" class="btn-secondary">Export as JSON</button>
+          <button @click="showImportModal = true" class="btn-secondary">Import from JSON</button>
+          <button @click="clearAllData" class="btn-danger">Clear All Data</button>
         </div>
 
         <div class="settings-section">
@@ -619,100 +643,103 @@
       </div>
       <div class="sheet-content">
         <!-- Manual entry -->
-        <div v-show=\"quickAddMode === 'manual'\" class=\"form-section\">
-          <div class=\"form-group\">
+        <div v-show="quickAddMode === 'manual'" class="form-section">
+          <div class="form-group">
             <label>Amount</label>
-            <div class=\"numpad-container\">
-              <input v-model=\"quickAdd.amount\" type=\"number\" placeholder=\"0.00\" class=\"amount-input\">
+            <div class="numpad-container">
+              <input v-model="quickAdd.amount" type="number" inputmode="decimal" placeholder="0.00" class="amount-input" @focus="focusAmountInput($event.target)">
             </div>
           </div>
-          <div class=\"form-group\">
+          <div class="form-group">
             <label>Category</label>
-            <div class=\"category-chips\">
-              <button v-for=\"cat in categories\" :key=\"cat.id\"
-                      :class=\"['chip', { active: quickAdd.category === cat.id }]\"
-                      @click=\"quickAdd.category = cat.id\">
+            <div class="category-chips">
+              <button v-for="cat in categories" :key="cat.id"
+                      :class="['chip', { active: quickAdd.category === cat.id }]"
+                      @click="quickAdd.category = cat.id">
                 {{ cat.emoji }} {{ cat.name }}
               </button>
             </div>
           </div>
-          <div class=\"form-group\">
+          <div class="form-group">
             <label>Account</label>
-            <select v-model=\"quickAdd.account\" class=\"select-input\">
-              <option v-for=\"acc in accounts\" :key=\"acc.id\" :value=\"acc.id\">
+            <select v-model="quickAdd.account" class="select-input">
+              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
                 {{ acc.name }}
               </option>
             </select>
           </div>
-          <div class=\"form-group\">
+          <div class="form-group">
             <label>Description</label>
-            <div class=\"merchant-autocomplete\">
-              <input v-model=\"quickAdd.description\" 
-                     @input=\"getMerchantSuggestions(quickAdd.description); showMerchantSuggestions = quickAdd.description.length > 1\"
-                     @focus=\"showMerchantSuggestions = quickAdd.description.length > 1\"
-                     @blur=\"setTimeout(() => showMerchantSuggestions = false, 200)\"
-                     type=\"text\" placeholder=\"What was this for?\" class=\"text-input\">
+            <div class="merchant-autocomplete">
+              <input v-model="quickAdd.description" 
+                     @input="getMerchantSuggestions(quickAdd.description); showMerchantSuggestions = quickAdd.description.length > 1"
+                     @focus="showMerchantSuggestions = quickAdd.description.length > 1"
+                     @blur="setTimeout(() => showMerchantSuggestions = false, 200)"
+                     type="text" placeholder="What was this for?" class="text-input">
               <!-- Phase 4: Merchant Suggestions -->
-              <div v-if=\"showMerchantSuggestions && merchantSuggestions.length > 0\" class=\"autocomplete-dropdown\">
-                <div v-for=\"merchant in merchantSuggestions\" 
-                     :key=\"merchant\"
-                     @click=\"selectMerchantSuggestion(merchant)\"
-                     class=\"autocomplete-item\">
+              <div v-if="showMerchantSuggestions && merchantSuggestions.length > 0" class="autocomplete-dropdown">
+                <div v-for="merchant in merchantSuggestions" 
+                     :key="merchant"
+                     @click="selectMerchantSuggestion(merchant)"
+                     class="autocomplete-item">
                   {{ merchant }}
                 </div>
               </div>
             </div>
             <!-- AI Category Predictions -->
-            <div v-if=\"predictedCategories.length > 0 || categoryPredictionLoading\" class=\"category-predictions\">
-              <div v-if=\"categoryPredictionLoading\" class=\"prediction-loading\">
-                <span class=\"spinner\">⟳</span> Analyzing...
+            <div v-if="predictedCategories.length > 0 || categoryPredictionLoading" class="category-predictions">
+              <div v-if="categoryPredictionLoading" class="prediction-loading">
+                <span class="spinner">⟳</span> Analyzing...
               </div>
-              <div v-else class=\"predicted-options\">
-                <div class=\"prediction-label\">Suggested categories:</div>
-                <div class=\"prediction-chips\">
-                  <button v-for=\"(catId, idx) in predictedCategories\" :key=\"catId\"
-                          @click=\"quickAdd.category = catId\"
-                          class=\"prediction-chip\"
-                          :title=\"categories.find(c => c.id === catId)?.name\">
+              <div v-else class="predicted-options">
+                <div class="prediction-label">Suggested categories:</div>
+                <div class="prediction-chips">
+                  <button v-for="(catId, idx) in predictedCategories" :key="catId"
+                          @click="quickAdd.category = catId"
+                          class="prediction-chip"
+                          :title="categories.find(c => c.id === catId)?.name">
                     {{ categories.find(c => c.id === catId)?.emoji }}
-                    <span class=\"confidence\">{{ idx === 0 ? 'High' : idx === 1 ? 'Med' : 'Low' }}</span>
+                    <span class="confidence">{{ idx === 0 ? 'High' : idx === 1 ? 'Med' : 'Low' }}</span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
-          <div class=\"form-group\">
+          <div class="form-group">
             <label>Date</label>
-            <input v-model=\"quickAdd.date\" type=\"date\" class=\"text-input\">
+            <input v-model="quickAdd.date" type="date" class="text-input">
           </div>
           <!-- Phase 4: Tags Input -->
-          <div class=\"form-group\">
+          <div class="form-group">
             <label>Tags (optional)</label>
-            <input v-model=\"quickAdd.tagsInput\" type=\"text\" placeholder=\"Add tags separated by commas\" class=\"text-input\" @change=\"quickAdd.tags = quickAdd.tagsInput.split(',').map(t => t.trim()).filter(t => t)\">
-            <div v-if=\"quickAdd.tags.length > 0\" class=\"tag-chips\">
-              <span v-for=\"(tag, idx) in quickAdd.tags\" :key=\"idx\" class=\"tag-chip\">
+            <input v-model="quickAdd.tagsInput" type="text" placeholder="Add tags separated by commas" class="text-input" @change="quickAdd.tags = quickAdd.tagsInput.split(',').map(t => t.trim()).filter(t => t)">
+            <div v-if="quickAdd.tags.length > 0" class="tag-chips">
+              <span v-for="(tag, idx) in quickAdd.tags" :key="idx" class="tag-chip">
                 {{ tag }}
-                <button @click=\"quickAdd.tags.splice(idx, 1); quickAdd.tagsInput = quickAdd.tags.join(', ')\" class=\"tag-remove\">×</button>
+                <button @click="quickAdd.tags.splice(idx, 1); quickAdd.tagsInput = quickAdd.tags.join(', ')" class="tag-remove">×</button>
               </span>
             </div>
           </div>
           <!-- Phase 2: Recurring Transaction Options -->
-          <div class=\"form-group\">
+          <div class="form-group">
             <label>
-              <input type=\"checkbox\" v-model=\"quickAdd.isRecurring\" class=\"checkbox-input\">
+              <input type="checkbox" v-model="quickAdd.isRecurring" class="checkbox-input">
               Make this recurring
             </label>
           </div>
-          <div v-if=\"quickAdd.isRecurring\" class=\"form-group\">
+          <div v-if="quickAdd.isRecurring" class="form-group">
             <label>Frequency</label>
-            <select v-model=\"quickAdd.frequency\" class=\"select-input\">
-              <option value=\"weekly\">Weekly</option>
-              <option value=\"biweekly\">Bi-weekly</option>
-              <option value=\"monthly\">Monthly</option>
-              <option value=\"quarterly\">Quarterly</option>
+            <select v-model="quickAdd.frequency" class="select-input">
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Bi-weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
             </select>
           </div>
-          <button @click=\"addTransaction\" class=\"btn-primary btn-full\">{{ quickAdd.isRecurring ? 'Add Recurring' : 'Add Expense' }}</button>
+          <div class="sheet-footer">
+            <button @click="showQuickAddMenu = false" class="btn-secondary">Cancel</button>
+            <button @click="addTransaction" class="btn-primary btn-full">{{ quickAdd.isRecurring ? 'Add Recurring' : 'Add Expense' }}</button>
+          </div>
         </div>
 
         <!-- Receipt OCR -->

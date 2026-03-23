@@ -1,0 +1,498 @@
+/* ============================================================
+   PHASE 7: Mobile-First Polish - Gestures, Haptics, Touch Optimization
+   ============================================================ */
+
+/* ── 1. Touch Action & Scrolling Optimization ──────────────────── */
+
+/* Enable momentum scrolling on iOS */
+.transactions-list,
+.budget-list,
+.goals-list,
+.accounts-list,
+.statement-txns {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+}
+
+/* Prevent double-tap zoom, enable smooth touch */
+.txn-row,
+.account-row,
+.budget-card,
+.goal-card,
+.btn-primary,
+.btn-secondary,
+.filter-chip,
+.chip {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── 2. Transaction Row Swipe Feedback ───────────────────────── */
+
+.txn-row {
+  position: relative;
+  will-change: transform;
+  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  cursor: grab;
+}
+
+.txn-row:active {
+  opacity: 0.95;
+  cursor: grabbing;
+}
+
+/* Visual feedback when swiping */
+.txn-row[data-swiping="true"] {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: var(--r-md);
+}
+
+/* Swipe hint indicator background */
+.txn-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(to left, rgba(239, 68, 68, 0.3) 0%, transparent 50%);
+  pointer-events: none;
+  opacity: 0;
+  border-radius: var(--r-md);
+  z-index: -1;
+}
+
+/* ── 3. Pull-to-Refresh UI ────────────────────────────────────── */
+
+.pull-refresh-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: var(--r-md);
+  margin-bottom: 16px;
+  animation: slideIn 0.3s ease-out;
+}
+
+.refresh-spinner {
+  font-size: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── 4. Gesture Hints ─────────────────────────────────────────── */
+
+.gesture-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: var(--r-md);
+  font-size: 14px;
+  color: var(--text);
+  animation: fadeInDown 0.4s ease-out;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gesture-hint:hover {
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.25) 0%, rgba(139, 92, 246, 0.15) 100%);
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.gesture-hint span {
+  flex: 1;
+}
+
+.hint-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+  min-height: 32px;
+  min-width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hint-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.hint-close:active {
+  transform: scale(0.95);
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── 5. Modal Sticky Action Buttons (Feature #7) ─────────────── */
+
+.modal-footer,
+.sheet-footer,
+.dialog-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: var(--spacing-md);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  z-index: 100;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.modal-footer button,
+.sheet-footer button,
+.dialog-footer button {
+  min-height: 44px;
+  padding: 12px 16px;
+}
+
+/* Support for modals with scroll content */
+.modal-content,
+.sheet-content,
+.dialog-content {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 16px;
+}
+
+/* ── 6. Touch-Optimized Tap Targets (44px minimum) ─────────────── */
+
+/* Ensure all interactive elements are at least 44x44px */
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+a[role="button"],
+[role="button"],
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-sm,
+.icon-btn,
+.nav-btn,
+.filter-chip,
+.chip,
+.txn-row,
+.account-row,
+.budget-card,
+.goal-card,
+.merchant-row,
+.trend-row,
+select,
+textarea,
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="date"],
+input[type="search"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Add padding for tiny buttons */
+.btn-sm {
+  min-height: 40px;
+  padding: 10px 14px;
+}
+
+/* Icon buttons should still be 44x44 */
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 7. Safe Area Inset Support (Notch/Dynamic Island) ──────────── */
+
+/* Already in mobile.css but enhanced here */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  .app-container {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  nav {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+
+  .tab-content {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .modal-footer,
+  .sheet-footer {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .content-area {
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: calc(var(--bottom-nav-h) + max(0px, env(safe-area-inset-bottom)));
+  }
+}
+
+/* ── 8. Form Input Improvements (Focus & Mobile Numpad) ────────── */
+
+/* Larger font to prevent iOS auto-zoom */
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="date"],
+input[type="search"],
+textarea,
+select {
+  font-size: 16px;
+  padding: 12px;
+  min-height: 44px;
+}
+
+/* Amount input - extra large for one-handed use */
+.amount-input {
+  font-size: 28px;
+  font-weight: 600;
+  padding: 16px 12px;
+  min-height: 60px;
+  text-align: center;
+  font-family: var(--font-mono);
+  letter-spacing: 2px;
+}
+
+.amount-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-focus);
+  outline: none;
+}
+
+/* Number input spinner hide (mobile aesthetic) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"][type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ── 9. Swipe Hints & Visual Feedback ──────────────────────────── */
+
+.swipe-hint {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(249, 115, 22, 0.1) 100%);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.swipe-hint span::before {
+  content: '← ';
+  font-size: 20px;
+  margin-right: 4px;
+}
+
+/* Pull-to-refresh hint */
+.pull-hint {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(34, 197, 94, 0.1) 100%);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* ── 10. iOS-Specific Optimizations ──────────────────────────── */
+
+/* Prevent rubber-band scroll on overscroll */
+@supports (-webkit-touch-callout: none) {
+  /* iOS detection */
+  body {
+    overscroll-behavior: contain;
+  }
+
+  /* Prevent long-press context menu on iOS for app-like feel */
+  * {
+    -webkit-user-select: none;
+    -webkit-user-callout: none;
+  }
+
+  /* Allow text selection in specific areas */
+  input,
+  textarea,
+  .selectable-text {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Smoother font rendering */
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Disable default tap highlight */
+  button,
+  a,
+  [role="button"] {
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Smooth scrolling */
+  ::-webkit-scrollbar-thumb {
+    -webkit-border-radius: 3px;
+  }
+}
+
+/* ── 11. Android-Specific Optimizations ──────────────────────── */
+
+@supports (-webkit-appearance: none) {
+  /* Android Chrome */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    overscroll-behavior: contain;
+  }
+
+  /* Prevent text selection during interaction */
+  * {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+/* ── 12. High DPI / Retina Display Adjustments ─────────────── */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .txn-row,
+  .button-row,
+  .card {
+    border-width: 0.5px;
+  }
+}
+
+/* ── 13. Landscape Mode Mobile Optimizations ──────────────────── */
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .gesture-hint {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .pull-refresh-indicator {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .amount-input {
+    font-size: 24px;
+    min-height: 48px;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="date"],
+  select {
+    min-height: 40px;
+  }
+}
+
+/* ── 14. Reduced Motion Mode ──────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .txn-row,
+  .gesture-hint,
+  .pull-refresh-indicator {
+    transition: none;
+    animation: none;
+  }
+
+  .refresh-spinner {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* ── 15. Dark & Light Mode Adjustments ──────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  .gesture-hint {
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+  }
+
+  .pull-refresh-indicator {
+    background: rgba(16, 185, 129, 0.08);
+  }
+
+  .modal-footer,
+  .sheet-footer {
+    background: rgba(10, 14, 39, 0.95);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  .gesture-hint {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.05) 100%);
+  }
+
+  .pull-refresh-indicator {
+    background: rgba(34, 197, 94, 0.05);
+  }
+}
