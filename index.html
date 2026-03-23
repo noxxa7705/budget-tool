@@ -171,7 +171,7 @@
         </div>
 
         <!-- Accounts section -->
-        <div class="section">
+        <div class="section section-panel accounts-section">
           <h3 class="section-title">Accounts</h3>
           <div class="accounts-list">
             <div v-for="account in accounts" :key="account.id" class="account-row">
@@ -187,7 +187,7 @@
         </div>
 
         <!-- Spending by category -->
-        <div class="section">
+        <div class="section section-panel spending-section">
           <h3 class="section-title">Top Spending ({{ currentMonth }})</h3>
           <div class="category-breakdown">
             <div v-for="cat in topCategories" :key="cat.id" class="category-row category-row-intel">
@@ -209,7 +209,7 @@
         </div>
 
         <!-- Phase 9: Income Projection Section -->
-        <div class="section">
+        <div class="section section-panel income-projection-section">
           <div class="section-header">
             <h3 class="section-title">💰 Income Projection</h3>
             <span class="text-muted" v-if="incomeProjection.target > 0">{{ formatPercent(incomeProjection.percentToTarget, 0) }} of target</span>
@@ -238,7 +238,7 @@
         </div>
 
         <!-- Phase 9: Due Bills & Alerts Section -->
-        <div v-if="dueAlerts.hasAlerts" class="section">
+        <div v-if="dueAlerts.hasAlerts" class="section section-panel bills-section">
           <div class="section-header">
             <h3 class="section-title">⏰ Bills Due Soon</h3>
             <span class="alert-badge" v-if="dueAlerts.overdue.length > 0">{{ dueAlerts.overdue.length }} overdue</span>
@@ -270,7 +270,7 @@
         </div>
 
         <!-- Recent transactions -->
-        <div class="section">
+        <div class="section section-panel recent-section">
           <div class="section-header">
             <h3 class="section-title">Recent</h3>
             <a href="#" @click.prevent="activeTab = 'transactions'" class="link-small">See all →</a>

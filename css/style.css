@@ -355,7 +355,7 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  transition: border-color var(--transition), background var(--transition);
+  transition: border-color var(--transition), background var(--transition), transform var(--transition), box-shadow var(--transition);
 }
 
 .card:hover {
@@ -442,7 +442,7 @@ input[type="number"] {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: background var(--transition), border-color var(--transition);
+  transition: background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
 }
 
 .account-row:hover {
@@ -603,7 +603,7 @@ input[type="number"] {
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition);
+  transition: background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
 }
 
 .txn-row:hover {
@@ -3543,6 +3543,208 @@ input[type="number"] {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Desktop dashboard refinement */
+@media (min-width: 1200px) {
+  .tab-content {
+    width: min(1440px, calc(100vw - 40px));
+    margin: 0 auto;
+    padding: 1rem 1rem 6rem;
+  }
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .dashboard > .ai-insight-banner,
+  .dashboard > .summary-cards,
+  .dashboard > .intelligence-grid {
+    grid-column: 1 / -1;
+  }
+
+  .summary-cards-phase8 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  .summary-cards-phase8 .card {
+    min-height: 162px;
+    padding: 1rem;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.012));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 28px rgba(0, 0, 0, 0.2);
+  }
+
+  .summary-cards-phase8 .card:hover,
+  .dashboard > .section-panel:hover,
+  .dashboard .intel-card:hover,
+  .dashboard .account-row:hover,
+  .dashboard .txn-row:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
+  }
+
+  .intelligence-grid,
+  .insight-grid,
+  .comparison-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  .intel-card,
+  .trend-panel,
+  .budget-burndown-card,
+  .debt-simulator,
+  .comparison-summary-card {
+    min-height: 220px;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.025), 0 10px 24px rgba(0, 0, 0, 0.18);
+    transition: border-color var(--transition), background var(--transition), transform var(--transition), box-shadow var(--transition);
+  }
+
+  .dashboard > .section-panel {
+    position: relative;
+    min-height: 100%;
+    padding: 1rem;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.024), rgba(255,255,255,0.01));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 30px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+    transition: border-color var(--transition), background var(--transition), transform var(--transition), box-shadow var(--transition);
+  }
+
+  .dashboard > .section-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.16), rgba(255,255,255,0));
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .accounts-section,
+  .income-projection-section {
+    grid-column: 1 / span 5;
+  }
+
+  .spending-section,
+  .bills-section,
+  .recent-section {
+    grid-column: 6 / -1;
+  }
+
+  .accounts-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+  }
+
+  .account-row {
+    min-height: 88px;
+    padding: 0.95rem 1rem;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.025);
+    border-color: rgba(255,255,255,0.06);
+  }
+
+  .account-balance {
+    font-size: 1rem;
+  }
+
+  .category-breakdown,
+  .transactions-preview,
+  .alerts-list {
+    gap: 0.65rem;
+  }
+
+  .category-row-intel {
+    padding: 0.8rem 0.1rem;
+  }
+
+  .txn-row {
+    min-height: 78px;
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.024);
+    border-color: rgba(255,255,255,0.055);
+  }
+
+  .txn-desc,
+  .account-name,
+  .category-name {
+    font-size: 0.92rem;
+  }
+
+  .txn-amount,
+  .projection-row strong {
+    font-size: 0.98rem;
+  }
+
+  .projection-row {
+    padding: 0.55rem 0;
+    font-size: 0.86rem;
+  }
+
+  .section-title {
+    letter-spacing: 0.09em;
+  }
+
+  .link-small {
+    text-decoration: none;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+  }
+
+  .link-small:hover {
+    background: rgba(255,255,255,0.06);
+  }
+}
+
+@media (min-width: 1200px) and (prefers-reduced-motion: no-preference) {
+  @keyframes desktopPanelIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .summary-cards-phase8 .card,
+  .dashboard .intel-card,
+  .dashboard > .section-panel {
+    animation: desktopPanelIn 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .summary-cards-phase8 .card:nth-child(2),
+  .dashboard .intel-card:nth-child(2),
+  .dashboard > .section-panel:nth-child(2) {
+    animation-delay: 40ms;
+  }
+
+  .summary-cards-phase8 .card:nth-child(3),
+  .dashboard .intel-card:nth-child(3),
+  .dashboard > .section-panel:nth-child(3) {
+    animation-delay: 80ms;
+  }
+
+  .summary-cards-phase8 .card:nth-child(4),
+  .dashboard .intel-card:nth-child(4),
+  .dashboard > .section-panel:nth-child(4) {
+    animation-delay: 120ms;
+  }
 }
 
 /* Print Styles */
