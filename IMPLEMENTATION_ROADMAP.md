@@ -110,22 +110,38 @@
 
 ---
 
-### Phase 10 — Advanced reports & export ⏳
+### Phase 10 — Advanced reports & export ✅
 **Goal:** Make Night Ledger useful for reviews, audits, taxes, and structured decision-making.
 
 **Features:**
-- [ ] Monthly PDF summary report
-- [ ] Print-ready view for all data
-- [ ] Tax category tagging system
-- [ ] Tax report generation
-- [ ] Custom date range selection for reports
-- [ ] Budget variance reports
-- [ ] Comparison reports (month-to-month, YoY)
-- [ ] Executive summary export
-- [ ] JSON export with full history
-- [ ] Category breakdown PDFs
+- [x] Monthly PDF summary report
+- [x] Print-ready view for all data
+- [x] Tax category tagging system
+- [x] Tax report generation
+- [x] Custom date range selection for reports
+- [x] Budget variance reports
+- [x] Comparison reports (month-to-month, YoY)
+- [x] Executive summary export
+- [x] JSON export with full history
+- [x] Category breakdown PDFs
 
-**Status:** PENDING
+**Status:** SHIPPED
+
+**Details:**
+- 5-tab report interface: Summary, Tax, Variance, Comparison, Export
+- Tax tagging system with isTaxRelevant flag on transactions
+- Date range presets: This Month, Last Month, This Year, custom range
+- Monthly PDF summaries with category breakdown tables
+- Tax report with deductible expense tracking by category
+- Budget variance analysis showing over/under budget
+- Month-to-month and year-over-year comparison reports
+- Executive summary JSON export (high-level overview)
+- Full data export with all transactions and metadata
+- CSV export for spreadsheet analysis
+- Print-friendly CSS with page-break handling
+- Responsive tables for mobile (2-3 columns on small screens)
+- No external dependencies - uses browser's native print-to-PDF
+- Dark Sigma theme throughout reports
 
 ---
 
