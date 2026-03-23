@@ -2315,6 +2315,44 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       }
     }
 
+    function loadDemoData() {
+      if (confirm('🚀 Load demo data? This will replace existing data.')) {
+        if (window.SeedDataUtils) {
+          // Create a proxy state object that includes all reactive refs
+          const proxyState = {
+            transactions,
+            accounts,
+            categories,
+            incomeSources,
+            budgets,
+            goals,
+            bills,
+            // Add setters for each
+            set transactions(val) { transactions.value = val; },
+            set accounts(val) { accounts.value = val; },
+            set categories(val) { categories.value = val; },
+            set incomeSources(val) { incomeSources.value = val; },
+            set budgets(val) { budgets.value = val; },
+            set goals(val) { goals.value = val; },
+            set bills(val) { bills.value = val; },
+            get transactions() { return transactions.value; },
+            get accounts() { return accounts.value; },
+            get categories() { return categories.value; },
+            get incomeSources() { return incomeSources.value; },
+            get budgets() { return budgets.value; },
+            get goals() { return goals.value; },
+            get bills() { return bills.value; },
+          };
+          
+          window.SeedDataUtils.initializeSeedData(proxyState);
+          saveAllData();
+          showNotification('✅ Demo data loaded! Explore the app features.');
+        } else {
+          showNotification('❌ Seed data utility not loaded');
+        }
+      }
+    }
+
     // ==================== Month Navigation ====================
     let displayMonth = reactive({ month: new Date().getMonth(), year: new Date().getFullYear() });
 
@@ -3717,6 +3755,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       testConnections,
       exportData,
       clearAllData,
+      loadDemoData,
       previousMonth,
       nextMonth,
       getProgressOffset,

@@ -835,10 +835,17 @@
 
         <div class="settings-section">
           <h3>Data</h3>
-          <button @click="exportAsCSV" class="btn-secondary">📊 Export as CSV</button>
-          <button @click="exportData" class="btn-secondary">Export as JSON</button>
-          <button @click="showImportModal = true" class="btn-secondary">Import from JSON</button>
-          <button @click="clearAllData" class="btn-danger">Clear All Data</button>
+          <div class="setting-row">
+            <p class="text-muted">Load demo data to explore capabilities, then clear to start fresh.</p>
+            <button @click="loadDemoData" class="btn-primary">🚀 Load Demo Data</button>
+            <button @click="clearAllData" class="btn-danger">🗑️ Clear All Data</button>
+          </div>
+          <div class="setting-row">
+            <p class="text-muted" style="margin-top: 1rem;">Export and import your financial data.</p>
+            <button @click="exportAsCSV" class="btn-secondary">📊 Export as CSV</button>
+            <button @click="exportData" class="btn-secondary">Export as JSON</button>
+            <button @click="showImportModal = true" class="btn-secondary">Import from JSON</button>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -2044,6 +2051,7 @@
 <script src="js/receipt-parser.js"></script>
 <script src="js/category-customizer.js"></script>
 <script src="js/ui-shell.js"></script>
+<script src="js/seed-data.js"></script>
 <!-- QuickAddModal Configuration & Components -->
 <script src="js/modal-config.js"></script>
 <script src="js/components/ModalTabs.js"></script>
