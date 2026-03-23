@@ -167,7 +167,49 @@ const app = createApp({
       { id: 'src-other-income', name: 'Other Income', emoji: '🔄' },
     ]);
 
-    let bills = ref([]);\n    let showBillsModal = ref(false);\n    let billEditingId = ref(null);\n    let newBill = reactive({\n      description: '',\n      amount: '',\n      dueDate: '',\n      status: 'unpaid',\n      notes: '',\n    });\n\n    // ==================== Phase 12: Category Customization ====================\n    const showCategoryCustomizer = ref(false);\n    const categoryCustomizerTab = ref('manage');\n    const categorySearchQuery = ref('');\n    const showAddCategoryForm = ref(false);\n    const showEmojiPicker = ref(false);\n    const showColorPicker = ref(false);\n    const showEditColorPicker = ref(false);\n    const showEditCategoryModal = ref(false);\n    const showMergeCategoriesModal = ref(false);\n    const categoryImportInput = ref(null);\n\n    const categoryCustomizerSettings = reactive({\n      hideUnused: false,\n      showSubcategories: true,\n      showStats: true,\n    });\n\n    const newCategoryForm = reactive({\n      name: '',\n      emoji: '📌',\n      color: '#6b7280',\n      parentId: '',\n      aliasesInput: '',\n    });\n\n    const editingCategory = reactive({\n      id: '',\n      name: '',\n      emoji: '',\n      color: '',\n      aliasesEdit: '',\n    });\n\n    const mergeState = reactive({\n      sourceId: '',\n      targetId: '',\n      deleteSource: true,\n    });\n\n    let draggedCategoryIndex = null;\n\n    // ==================== Phase 13: Transaction Enhancements ====================
+    let bills = ref([]);\n    let showBillsModal = ref(false);\n    let billEditingId = ref(null);\n    let newBill = reactive({\n      description: '',\n      amount: '',\n      dueDate: '',\n      status: 'unpaid',\n      notes: '',\n    });\n\n    // ==================== Phase 12: Category Customization ====================\n    const showCategoryCustomizer = ref(false);\n    const categoryCustomizerTab = ref('manage');\n    const categorySearchQuery = ref('');\n    const showAddCategoryForm = ref(false);\n    const showEmojiPicker = ref(false);\n    const showColorPicker = ref(false);\n    const showEditColorPicker = ref(false);\n    const showEditCategoryModal = ref(false);\n    const showMergeCategoriesModal = ref(false);\n    const categoryImportInput = ref(null);\n\n    const categoryCustomizerSettings = reactive({\n      hideUnused: false,\n      showSubcategories: true,\n      showStats: true,\n    });\n\n    const newCategoryForm = reactive({\n      name: '',\n      emoji: '📌',\n      color: '#6b7280',\n      parentId: '',\n      aliasesInput: '',\n    });\n\n    const editingCategory = reactive({\n      id: '',\n      name: '',\n      emoji: '',\n      color: '',\n      aliasesEdit: '',\n    });\n\n    const mergeState = reactive({\n      sourceId: '',\n      targetId: '',\n      deleteSource: true,\n    });\n\n    let draggedCategoryIndex = null;\n\n    // ==================== Phase 12: Category Customization ====================
+    const showCategoryCustomizer = ref(false);
+    const categoryCustomizerTab = ref('manage');
+    const categorySearchQuery = ref('');
+    const showAddCategoryForm = ref(false);
+    const showEmojiPicker = ref(false);
+    const showColorPicker = ref(false);
+    const showEditColorPicker = ref(false);
+    const showEditCategoryModal = ref(false);
+    const showMergeCategoriesModal = ref(false);
+    const categoryImportInput = ref(null);
+
+    const categoryCustomizerSettings = reactive({
+      hideUnused: false,
+      showSubcategories: true,
+      showStats: true,
+    });
+
+    const newCategoryForm = reactive({
+      name: '',
+      emoji: '📌',
+      color: '#6b7280',
+      parentId: '',
+      aliasesInput: '',
+    });
+
+    const editingCategory = reactive({
+      id: '',
+      name: '',
+      emoji: '',
+      color: '',
+      aliasesEdit: '',
+    });
+
+    const mergeState = reactive({
+      sourceId: '',
+      targetId: '',
+      deleteSource: true,
+    });
+
+    let draggedCategoryIndex = null;
+
+        // ==================== Phase 13: Transaction Enhancements ====================
     const phase13 = reactive({
       showEditModal: false,
       showTemplatesModal: false,
@@ -1566,7 +1608,49 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       contextMenu.visible = true;
     }
 
-    // ==================== Phase 13: Transaction Enhancements ====================
+    // ==================== Phase 12: Category Customization ====================
+    const showCategoryCustomizer = ref(false);
+    const categoryCustomizerTab = ref('manage');
+    const categorySearchQuery = ref('');
+    const showAddCategoryForm = ref(false);
+    const showEmojiPicker = ref(false);
+    const showColorPicker = ref(false);
+    const showEditColorPicker = ref(false);
+    const showEditCategoryModal = ref(false);
+    const showMergeCategoriesModal = ref(false);
+    const categoryImportInput = ref(null);
+
+    const categoryCustomizerSettings = reactive({
+      hideUnused: false,
+      showSubcategories: true,
+      showStats: true,
+    });
+
+    const newCategoryForm = reactive({
+      name: '',
+      emoji: '📌',
+      color: '#6b7280',
+      parentId: '',
+      aliasesInput: '',
+    });
+
+    const editingCategory = reactive({
+      id: '',
+      name: '',
+      emoji: '',
+      color: '',
+      aliasesEdit: '',
+    });
+
+    const mergeState = reactive({
+      sourceId: '',
+      targetId: '',
+      deleteSource: true,
+    });
+
+    let draggedCategoryIndex = null;
+
+        // ==================== Phase 13: Transaction Enhancements ====================
 
     /**
      * Feature 1: Multi-line Notes
@@ -3356,6 +3440,35 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       detectDuplicates,
       markAsDuplicate,
       applyBulkEdit,
+      // Phase 12: Category Customization
+      showCategoryCustomizer,
+      categoryCustomizerTab,
+      categorySearchQuery,
+      showAddCategoryForm,
+      showEmojiPicker,
+      showColorPicker,
+      showEditColorPicker,
+      showEditCategoryModal,
+      showMergeCategoriesModal,
+      categoryCustomizerSettings,
+      newCategoryForm,
+      editingCategory,
+      mergeState,
+      CategoryCustomizer,
+      filteredCategoriesForCustomizer,
+      getCategoryStats,
+      addNewCategory,
+      editCategoryModal,
+      saveEditCategory,
+      showDeleteCategoryConfirm,
+      handleCategoryDragStart,
+      handleCategoryDragEnd,
+      handleCategoryDrop,
+      applyPreset,
+      selectIconForNewCategory,
+      mergeCategories,
+      exportCategoriesToJSON,
+      importCategoriesFromFile,
     };
   },
 });
