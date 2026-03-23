@@ -159,26 +159,49 @@
     </div>
 
     <!-- Budget Tab -->
-    <div v-show="activeTab === 'budget'" class="tab-content">
-      <div class="budget-view">
-        <div class="budget-month">
-          <button @click="previousMonth" class="btn-nav">&lt;</button>
-          <span class="month-label">{{ currentMonth }}</span>
-          <button @click="nextMonth" class="btn-nav">&gt;</button>
+    <div v-show=\"activeTab === 'budget'\" class=\"tab-content\">
+      <div class=\"budget-view\">
+        <div class=\"budget-month\">
+          <button @click=\"previousMonth\" class=\"btn-nav\">&lt;</button>
+          <span class=\"month-label\">{{ currentMonth }}</span>
+          <button @click=\"nextMonth\" class=\"btn-nav\">&gt;</button>
         </div>
 
-        <div class="budget-list">
-          <div v-for="budget in budgets" :key="budget.id" class="budget-card">
-            <div class="budget-header">
-              <span class="budget-category">{{ budget.emoji }} {{ budget.name }}</span>
-              <span class="budget-amount">{{ formatCurrency(budget.spent) }} / {{ formatCurrency(budget.limit) }}</span>
+        <!-- Phase 2: Budget Suggestion Card -->
+        <div v-if=\"Object.keys(suggestedBudgets).length > 0\" class=\"suggestion-banner\">
+          <div class=\"suggestion-header\">
+            <span class=\"suggestion-icon\">💡</span>
+            <div class=\"suggestion-content\">
+              <div class=\"suggestion-label\">Smart Budget Suggestions</div>
+              <div class=\"suggestion-text\">Based on your last 3 months of spending (average + 20% buffer)</div>
             </div>
-            <div class="budget-bar">
-              <div class="bar-fill" :style="{ width: Math.min(100, (budget.spent / budget.limit) * 100) + '%', backgroundColor: budget.color }"></div>
+          </div>
+        </div>
+
+        <div class=\"budget-list\">
+          <div v-for=\"budget in budgets\" :key=\"budget.id\" class=\"budget-card\">
+            <div class=\"budget-header\">
+              <span class=\"budget-category\">{{ budget.emoji }} {{ budget.name }}</span>
+              <span class=\"budget-amount\">{{ formatCurrency(budget.spent) }} / {{ formatCurrency(budget.limit) }}</span>
             </div>
-            <div class="budget-footer">
-              <span v-if="budget.spent < budget.limit" class="budget-remaining">{{ formatCurrency(budget.limit - budget.spent) }} remaining</span>
-              <span v-else class="budget-over">{{ formatCurrency(budget.spent - budget.limit) }} over</span>
+            <div class=\"budget-bar\">
+              <div class=\"bar-fill\" :style=\"{ width: Math.min(100, (budget.spent / budget.limit) * 100) + '%', backgroundColor: budget.color }\"></div>
+            </div>
+            <div class=\"budget-footer\">
+              <span v-if=\"budget.spent < budget.limit\" class=\"budget-remaining\">{{ formatCurrency(budget.limit - budget.spent) }} remaining</span>
+              <span v-else class=\"budget-over\">{{ formatCurrency(budget.spent - budget.limit) }} over</span>
+            </div>
+            <!-- Phase 2: Show suggested budget comparison -->
+            <div v-if=\"suggestedBudgets[budget.categoryId]\" class=\"budget-suggestion\">
+              <div class=\"suggestion-label\">Suggested: {{ formatCurrency(suggestedBudgets[budget.categoryId]) }}</div>
+              <div class=\"suggestion-comparison\" :class=\"budget.limit >= suggestedBudgets[budget.categoryId] ? 'above' : 'below'\">
+                <span v-if=\"budget.limit >= suggestedBudgets[budget.categoryId]\" class=\"comparison-text\">
+                  ✓ {{ formatCurrency(budget.limit - suggestedBudgets[budget.categoryId]) }} above suggestion
+                </span>
+                <span v-else class=\"comparison-text\">
+                  ↓ {{ formatCurrency(suggestedBudgets[budget.categoryId] - budget.limit) }} below suggestion
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -385,7 +408,23 @@
             <label>Date</label>
             <input v-model=\"quickAdd.date\" type=\"date\" class=\"text-input\">
           </div>
-          <button @click=\"addTransaction\" class=\"btn-primary btn-full\">Add Expense</button>
+          <!-- Phase 2: Recurring Transaction Options -->
+          <div class=\"form-group\">
+            <label>
+              <input type=\"checkbox\" v-model=\"quickAdd.isRecurring\" class=\"checkbox-input\">
+              Make this recurring
+            </label>
+          </div>
+          <div v-if=\"quickAdd.isRecurring\" class=\"form-group\">
+            <label>Frequency</label>
+            <select v-model=\"quickAdd.frequency\" class=\"select-input\">
+              <option value=\"weekly\">Weekly</option>
+              <option value=\"biweekly\">Bi-weekly</option>
+              <option value=\"monthly\">Monthly</option>
+              <option value=\"quarterly\">Quarterly</option>
+            </select>
+          </div>
+          <button @click=\"addTransaction\" class=\"btn-primary btn-full\">{{ quickAdd.isRecurring ? 'Add Recurring' : 'Add Expense' }}</button>
         </div>
 
         <!-- Receipt OCR -->

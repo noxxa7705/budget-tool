@@ -36,6 +36,8 @@ const app = createApp({
       description: '',
       date: new Date().toISOString().split('T')[0],
       type: 'expense',
+      isRecurring: false,
+      frequency: 'monthly',
     });
 
     // ==================== Phase 1: UX Improvements State ====================
@@ -54,6 +56,7 @@ const app = createApp({
     let categories = ref([]);
     let budgets = ref([]);
     let goals = ref([]);
+    let recurringTransactions = ref([]);
     let settings = ref({
       currency: 'USD',
       theme: 'dark',
@@ -79,9 +82,12 @@ const app = createApp({
       categories.value = (await getStorage('categories')) || initializeCategories();
       budgets.value = (await getStorage('budgets')) || initializeBudgets();
       goals.value = (await getStorage('goals')) || [];
+      recurringTransactions.value = (await getStorage('recurringTransactions')) || [];
       const storedSettings = (await getStorage('settings')) || {};
       settings.value = { ...settings.value, ...storedSettings };
 
+      // Generate recurring transactions for this month if needed
+      generateRecurringTransactions();
       
       // Initialize quickAdd with first account
       if (accounts.value.length > 0 && !quickAdd.account) {
@@ -310,6 +316,46 @@ const app = createApp({
       </svg>`;
     }
 
+    // ==================== Phase 2: Smart Budget Suggestions ====================
+    const suggestedBudgets = computed(() => {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      // Get last 3 months data
+      const months = [];
+      for (let i = 2; i >= 0; i--) {
+        const d = new Date(currentYear, currentMonth - i, 1);
+        months.push({ month: d.getMonth(), year: d.getFullYear() });
+      }
+
+      const categoryMonthlyData = {};
+      
+      // Aggregate spending by category for each month
+      months.forEach(m => {
+        transactions.value
+          .filter(t => {
+            const d = new Date(t.date);
+            return d.getMonth() === m.month && d.getFullYear() === m.year && t.type === 'expense';
+          })
+          .forEach(t => {
+            if (!categoryMonthlyData[t.category]) {
+              categoryMonthlyData[t.category] = [];
+            }
+            categoryMonthlyData[t.category].push(t.amount);
+          });
+      });
+
+      // Calculate suggestions: average + 20% buffer
+      const suggestions = {};
+      Object.entries(categoryMonthlyData).forEach(([catId, amounts]) => {
+        const average = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+        suggestions[catId] = Math.round(average * 1.2 * 100) / 100;
+      });
+
+      return suggestions;
+    });
+
     const topCategories = computed(() => {
       const categoryTotals = {};
       const now = new Date();
@@ -524,6 +570,60 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       }, 500);
     });
 
+    // ==================== Phase 2: Recurring Transaction Management ====================
+    function generateRecurringTransactions() {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      recurringTransactions.value.forEach(recurring => {
+        // Check if transaction already exists for this month
+        const exists = transactions.value.some(t => {
+          const d = new Date(t.date);
+          return t.recurringId === recurring.id && 
+                 d.getMonth() === currentMonth && 
+                 d.getFullYear() === currentYear;
+        });
+
+        if (!exists) {
+          // Determine if we should generate based on frequency
+          const lastDate = new Date(recurring.lastGenerated || recurring.date);
+          let shouldGenerate = false;
+          
+          if (recurring.frequency === 'weekly') {
+            shouldGenerate = (now - lastDate) >= 7 * 24 * 60 * 60 * 1000;
+          } else if (recurring.frequency === 'biweekly') {
+            shouldGenerate = (now - lastDate) >= 14 * 24 * 60 * 60 * 1000;
+          } else if (recurring.frequency === 'monthly') {
+            shouldGenerate = lastDate.getMonth() !== currentMonth;
+          } else if (recurring.frequency === 'quarterly') {
+            shouldGenerate = Math.floor(lastDate.getMonth() / 3) !== Math.floor(currentMonth / 3);
+          }
+
+          if (shouldGenerate) {
+            const txn = {
+              id: 'txn-' + Date.now(),
+              amount: recurring.amount,
+              category: recurring.category,
+              account: recurring.account,
+              description: recurring.description,
+              date: new Date(currentYear, currentMonth, 1).toISOString().split('T')[0],
+              type: 'expense',
+              isRecurringGenerated: true,
+              recurringId: recurring.id,
+              timestamp: Date.now(),
+            };
+            
+            transactions.value.push(txn);
+            updateAccountBalance(recurring.account, recurring.amount, true);
+            recurring.lastGenerated = new Date().toISOString();
+          }
+        }
+      });
+      
+      saveAllData();
+    }
+
     // ==================== Transaction Management ====================
     function addTransaction() {
       if (!quickAdd.amount || !quickAdd.category || !quickAdd.account) {
@@ -531,28 +631,51 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         return;
       }
 
-      const txn = {
-        id: 'txn-' + Date.now(),
-        amount: parseFloat(quickAdd.amount),
-        category: quickAdd.category,
-        account: quickAdd.account,
-        description: quickAdd.description || 'Transaction',
-        date: quickAdd.date,
-        type: quickAdd.type,
-        timestamp: Date.now(),
-      };
+      // If recurring, add to recurring transactions array
+      if (quickAdd.isRecurring) {
+        const recurring = {
+          id: 'rec-' + Date.now(),
+          amount: parseFloat(quickAdd.amount),
+          category: quickAdd.category,
+          account: quickAdd.account,
+          description: quickAdd.description || 'Recurring Transaction',
+          date: quickAdd.date,
+          frequency: quickAdd.frequency,
+          type: 'expense',
+          lastGenerated: quickAdd.date,
+          createdAt: new Date().toISOString(),
+        };
+        
+        recurringTransactions.value.push(recurring);
+        showNotification(`Recurring ${quickAdd.frequency} transaction added!`);
+      } else {
+        // Add single transaction
+        const txn = {
+          id: 'txn-' + Date.now(),
+          amount: parseFloat(quickAdd.amount),
+          category: quickAdd.category,
+          account: quickAdd.account,
+          description: quickAdd.description || 'Transaction',
+          date: quickAdd.date,
+          type: quickAdd.type,
+          timestamp: Date.now(),
+        };
 
-      transactions.value.push(txn);
-      updateAccountBalance(quickAdd.account, parseFloat(quickAdd.amount), quickAdd.type === 'expense');
+        transactions.value.push(txn);
+        updateAccountBalance(quickAdd.account, parseFloat(quickAdd.amount), quickAdd.type === 'expense');
+        showNotification('Transaction added!');
+      }
+      
       saveAllData();
       
       // Reset form
       quickAdd.amount = '';
       quickAdd.description = '';
       quickAdd.date = new Date().toISOString().split('T')[0];
+      quickAdd.isRecurring = false;
+      quickAdd.frequency = 'monthly';
       predictedCategories.value = [];
       showQuickAddMenu.value = false;
-      showNotification('Transaction added!');
       
       // Refresh AI insight
       fetchAIInsight();
@@ -805,12 +928,13 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         setStorage('categories', categories.value),
         setStorage('budgets', budgets.value),
         setStorage('goals', goals.value),
+        setStorage('recurringTransactions', recurringTransactions.value),
         setStorage('settings', settings.value),
       ]);
     }
 
     // Auto-save when any data changes
-    watch([accounts, transactions, budgets, goals, settings], saveAllData, { deep: true });
+    watch([accounts, transactions, budgets, goals, recurringTransactions, settings], saveAllData, { deep: true });
 
     return {
       // State
@@ -842,6 +966,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       categories,
       budgets,
       goals,
+      recurringTransactions,
       settings,
 
       // Computed
@@ -851,6 +976,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       netWorth,
       monthlyDelta,
       sparklineData,
+      suggestedBudgets,
       topCategories,
       recentTransactions,
       filteredTransactions,
@@ -864,6 +990,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       showNotification,
       hideModals,
       generateSparklineSVG,
+      generateRecurringTransactions,
       addTransaction,
       addReceiptTransaction,
       deleteTransaction,

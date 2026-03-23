@@ -1518,3 +1518,124 @@ input[type="number"] {
     padding: 1rem;
   }
 }
+
+/* ==================== Phase 2: Recurring Transactions & Smart Budgets ==================== */
+
+/* Checkbox styling */
+.checkbox-input {
+  margin-right: 0.5rem;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #e2e2e2;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* Budget suggestion banner */
+.suggestion-banner {
+  background: linear-gradient(135deg, rgba(147, 112, 219, 0.15), rgba(59, 130, 246, 0.15));
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 1rem;
+}
+
+.suggestion-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.suggestion-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.suggestion-content {
+  flex: 1;
+}
+
+.suggestion-label {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.suggestion-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Budget comparison in cards */
+.budget-suggestion {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-soft);
+  font-size: 0.85rem;
+}
+
+.budget-suggestion .suggestion-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.suggestion-comparison {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: var(--r-sm);
+  font-size: 0.8rem;
+}
+
+.suggestion-comparison.above {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.suggestion-comparison.below {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.comparison-text {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Mobile adjustments for new elements */
+@media (max-width: 640px) {
+  .suggestion-banner {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .suggestion-header {
+    gap: 0.5rem;
+  }
+  
+  .suggestion-icon {
+    font-size: 1rem;
+  }
+  
+  .suggestion-label,
+  .suggestion-text {
+    font-size: 0.8rem;
+  }
+  
+  .budget-suggestion {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+  }
+}
