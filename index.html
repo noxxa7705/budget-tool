@@ -207,6 +207,67 @@
           </div>
         </div>
 
+        <!-- Phase 9: Income Projection Section -->
+        <div class="section">
+          <div class="section-header">
+            <h3 class="section-title">💰 Income Projection</h3>
+            <span class="text-muted" v-if="incomeProjection.target > 0">{{ formatPercent(incomeProjection.percentToTarget, 0) }} of target</span>
+          </div>
+          <div class="intel-card" :class="incomeProjection.onTrack ? 'state-positive' : 'state-warning'">
+            <div class="projection-row">
+              <span>Actual This Month</span>
+              <strong>{{ formatCurrency(incomeProjection.actualThisMonth) }}</strong>
+            </div>
+            <div class="projection-row">
+              <span>Recurring Income</span>
+              <strong>{{ formatCurrency(incomeProjection.recurringMonthly) }}</strong>
+            </div>
+            <div class="projection-row" style="border-top: 1px solid var(--border); padding-top: 0.8rem; margin-top: 0.8rem;">
+              <span>Total Projected</span>
+              <strong style="color: #10b981;">{{ formatCurrency(incomeProjection.total) }}</strong>
+            </div>
+            <div v-if="incomeProjection.target > 0" class="projection-row">
+              <span>Monthly Target</span>
+              <strong>{{ formatCurrency(incomeProjection.target) }}</strong>
+            </div>
+            <div v-if="incomeProjection.target > 0 && !incomeProjection.onTrack" class="text-muted text-small" style="margin-top: 0.5rem;">
+              {{ formatCurrency(incomeProjection.remainingToTarget) }} needed to reach target
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 9: Due Bills & Alerts Section -->
+        <div v-if="dueAlerts.hasAlerts" class="section">
+          <div class="section-header">
+            <h3 class="section-title">⏰ Bills Due Soon</h3>
+            <span class="alert-badge" v-if="dueAlerts.overdue.length > 0">{{ dueAlerts.overdue.length }} overdue</span>
+          </div>
+          <div class="alerts-list">
+            <!-- Overdue bills -->
+            <div v-for="bill in dueAlerts.overdue" :key="bill.id" class="alert-item alert-overdue">
+              <div class="alert-icon">🔴</div>
+              <div class="alert-content">
+                <div class="alert-title">{{ bill.description }}</div>
+                <div class="alert-meta">OVERDUE · {{ formatCurrency(bill.amount) }}</div>
+              </div>
+              <button @click="markBillPaid(bill)" class="btn-icon-small" title="Mark as paid">✓</button>
+            </div>
+            <!-- Due soon bills -->
+            <div v-for="bill in dueAlerts.dueSoon" :key="bill.id" class="alert-item alert-due-soon">
+              <div class="alert-icon">🟡</div>
+              <div class="alert-content">
+                <div class="alert-title">{{ bill.description }}</div>
+                <div class="alert-meta">Due {{ formatDate(bill.dueDate) }} · {{ formatCurrency(bill.amount) }}</div>
+              </div>
+              <button @click="markBillPaid(bill)" class="btn-icon-small" title="Mark as paid">✓</button>
+            </div>
+          </div>
+          <div class="text-muted text-small" style="margin-top: 1rem; padding: 0 1rem;">
+            <strong>{{ formatCurrency(dueAlerts.totalDueSoon) }}</strong> total due in next 7 days
+            <span v-if="dueAlerts.totalOverdue > 0"> • <strong>{{ formatCurrency(dueAlerts.totalOverdue) }}</strong> overdue</span>
+          </div>
+        </div>
+
         <!-- Recent transactions -->
         <div class="section">
           <div class="section-header">
@@ -805,6 +866,15 @@
       <span class="nav-icon">◎</span>
       <span class="nav-label">Goals</span>
     </button>
+    <!-- Phase 9: Bills Tab -->
+    <button :class="['nav-btn', { active: activeTab === 'bills' }]"
+            @click="activeTab = 'bills'"
+            title="Bills">
+      <span class="nav-icon" v-if="dueAlerts.hasAlerts" style="color: #ef4444;">📋</span>
+      <span class="nav-icon" v-else>📋</span>
+      <span v-if="dueAlerts.overdue.length > 0" class="nav-badge" style="background: #ef4444;">{{ dueAlerts.overdue.length }}</span>
+      <span class="nav-label">Bills</span>
+    </button>
     <button :class="['nav-btn', { active: activeTab === 'analytics' }]"
             @click="activeTab = 'analytics'"
             title="Intelligence">
@@ -854,13 +924,35 @@
       <div class="sheet-content">
         <!-- Manual entry -->
         <div v-show="quickAddMode === 'manual'" class="form-section">
+          <!-- Phase 9: Transaction Type Toggle (Income/Expense) -->
+          <div class="form-group">
+            <label>Type</label>
+            <div class="transaction-type-toggle">
+              <button :class="['type-btn', { active: quickAdd.type === 'expense' }]" @click="quickAdd.type = 'expense'">
+                💸 Expense
+              </button>
+              <button :class="['type-btn', { active: quickAdd.type === 'income' }]" @click="quickAdd.type = 'income'">
+                💰 Income
+              </button>
+            </div>
+          </div>
           <div class="form-group">
             <label>Amount</label>
             <div class="numpad-container">
               <input v-model="quickAdd.amount" type="number" inputmode="decimal" placeholder="0.00" class="amount-input" @focus="focusAmountInput($event.target)">
             </div>
           </div>
-          <div class="form-group">
+          <!-- Phase 9: Income Source Selector (shown only for income) -->
+          <div v-if="quickAdd.type === 'income'" class="form-group">
+            <label>Income Source</label>
+            <select v-model="quickAdd.incomeSource" class="select-input">
+              <option v-for="src in incomeSources" :key="src.id" :value="src.id">
+                {{ src.emoji }} {{ src.name }}
+              </option>
+            </select>
+          </div>
+          <!-- Category selector (hidden for income, shown for expense) -->
+          <div v-if="quickAdd.type === 'expense'" class="form-group">
             <label>Category</label>
             <div class="category-chips">
               <button v-for="cat in categories" :key="cat.id"
@@ -948,7 +1040,7 @@
           </div>
           <div class="sheet-footer">
             <button @click="showQuickAddMenu = false" class="btn-secondary">Cancel</button>
-            <button @click="addTransaction" class="btn-primary btn-full">{{ quickAdd.isRecurring ? 'Add Recurring' : 'Add Expense' }}</button>
+            <button @click="addTransaction" class="btn-primary btn-full">{{ quickAdd.isRecurring ? 'Add Recurring' : (quickAdd.type === 'income' ? 'Add Income' : 'Add Expense') }}</button>
           </div>
         </div>
 
@@ -1049,6 +1141,136 @@
 
         <div class="text-muted" style="font-size: 0.85rem; text-align: center; margin-top: var(--spacing-md);">
           💡 Data is encoded but not encrypted. Keep tokens private.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 9: Bills Management Modal -->
+  <div v-if="showBillsModal" class="modal-overlay" @click.self="showBillsModal = false">
+    <div class="modal-dialog modal-large">
+      <div class="modal-header">
+        <h2>{{ billEditingId ? 'Edit Bill' : 'Add New Bill' }}</h2>
+        <button class="btn-close" @click="showBillsModal = false; cancelBillEdit()">×</button>
+      </div>
+      <div class="form-section">
+        <div class="form-group">
+          <label>Description</label>
+          <input v-model="newBill.description" type="text" placeholder="e.g., Electric Bill" class="text-input">
+        </div>
+        <div class="form-group">
+          <label>Amount</label>
+          <input v-model="newBill.amount" type="number" placeholder="0.00" class="text-input">
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input v-model="newBill.dueDate" type="date" class="text-input">
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select v-model="newBill.status" class="select-input">
+            <option value="unpaid">Unpaid</option>
+            <option value="paid">Paid</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <textarea v-model="newBill.notes" placeholder="Add any notes..." class="textarea-input" style="height: 80px;"></textarea>
+        </div>
+        <div class="form-footer">
+          <button @click="showBillsModal = false; cancelBillEdit()" class="btn-secondary">Cancel</button>
+          <button v-if="billEditingId" @click="saveBillEdit()" class="btn-primary">Save Changes</button>
+          <button v-else @click="addBill()" class="btn-primary">Add Bill</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 9: Bills Tab Content (shown in main tabs) -->
+  <div v-show="activeTab === 'bills'" class="tab-content">
+    <div class="bills-view">
+      <div class="bills-toolbar">
+        <h3 class="section-title">Bills & Obligations</h3>
+        <button @click="showBillsModal = true; cancelBillEdit()" class="btn-primary btn-sm">+ Add Bill</button>
+      </div>
+
+      <div v-if="bills.length === 0" class="empty-state">
+        <div class="empty-icon">📋</div>
+        <p>No bills yet</p>
+        <p class="text-muted">Add a bill to track due dates and payments</p>
+        <button @click="showBillsModal = true" class="btn-primary" style="margin-top: 1rem;">Add Your First Bill</button>
+      </div>
+
+      <div v-else class="bills-grid">
+        <!-- Overdue bills section -->
+        <div v-if="dueAlerts.overdue.length > 0" class="bills-section">
+          <div class="section-header">
+            <h4 class="section-subtitle">🔴 Overdue ({{ dueAlerts.overdue.length }})</h4>
+            <span class="alert-badge">{{ formatCurrency(dueAlerts.totalOverdue) }}</span>
+          </div>
+          <div class="bills-list">
+            <div v-for="bill in dueAlerts.overdue" :key="bill.id" class="bill-card bill-overdue">
+              <div class="bill-header">
+                <div class="bill-title">{{ bill.description }}</div>
+                <div class="bill-amount">{{ formatCurrency(bill.amount) }}</div>
+              </div>
+              <div class="bill-meta">
+                <span class="overdue-badge">OVERDUE since {{ formatDate(bill.dueDate) }}</span>
+              </div>
+              <div class="bill-actions">
+                <button @click="markBillPaid(bill)" class="btn-secondary btn-xs">Mark Paid</button>
+                <button @click="editBill(bill); showBillsModal = true" class="btn-secondary btn-xs">Edit</button>
+                <button @click="deleteBill(bill)" class="btn-danger btn-xs">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Due soon bills section -->
+        <div v-if="dueAlerts.dueSoon.length > 0" class="bills-section">
+          <div class="section-header">
+            <h4 class="section-subtitle">🟡 Due Soon ({{ dueAlerts.dueSoon.length }})</h4>
+            <span class="alert-badge">{{ formatCurrency(dueAlerts.totalDueSoon) }}</span>
+          </div>
+          <div class="bills-list">
+            <div v-for="bill in dueAlerts.dueSoon" :key="bill.id" class="bill-card bill-due-soon">
+              <div class="bill-header">
+                <div class="bill-title">{{ bill.description }}</div>
+                <div class="bill-amount">{{ formatCurrency(bill.amount) }}</div>
+              </div>
+              <div class="bill-meta">
+                <span class="due-soon-badge">Due {{ formatDate(bill.dueDate) }}</span>
+              </div>
+              <div class="bill-actions">
+                <button @click="markBillPaid(bill)" class="btn-secondary btn-xs">Mark Paid</button>
+                <button @click="editBill(bill); showBillsModal = true" class="btn-secondary btn-xs">Edit</button>
+                <button @click="deleteBill(bill)" class="btn-danger btn-xs">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paid bills section -->
+        <div v-if="bills.filter(b => b.status === 'paid').length > 0" class="bills-section">
+          <div class="section-header">
+            <h4 class="section-subtitle">✓ Paid ({{ bills.filter(b => b.status === 'paid').length }})</h4>
+          </div>
+          <div class="bills-list">
+            <div v-for="bill in bills.filter(b => b.status === 'paid')" :key="bill.id" class="bill-card bill-paid">
+              <div class="bill-header">
+                <div class="bill-title">{{ bill.description }}</div>
+                <div class="bill-amount">{{ formatCurrency(bill.amount) }}</div>
+              </div>
+              <div class="bill-meta">
+                <span class="paid-badge">Paid on {{ formatDate(bill.dueDate) }}</span>
+              </div>
+              <div class="bill-actions">
+                <button @click="unmarkBillPaid(bill)" class="btn-secondary btn-xs">Undo</button>
+                <button @click="editBill(bill); showBillsModal = true" class="btn-secondary btn-xs">Edit</button>
+                <button @click="deleteBill(bill)" class="btn-danger btn-xs">Delete</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

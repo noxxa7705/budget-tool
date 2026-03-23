@@ -36,6 +36,7 @@ const app = createApp({
       description: '',
       date: new Date().toISOString().split('T')[0],
       type: 'expense',
+      incomeSource: 'src-salary', // Phase 9: Selected income source
       isRecurring: false,
       frequency: 'monthly',
       tags: [],
@@ -151,6 +152,30 @@ const app = createApp({
       apiKey: '',
       visionEndpoint: '',
       visionApiKey: '',
+      incomeTarget: 0, // Phase 9: Monthly income target
+    });
+
+    // ==================== Phase 9: Income & Bill Management ====================
+    const incomeSources = ref([
+      { id: 'src-salary', name: 'Salary', emoji: '💼' },
+      { id: 'src-freelance', name: 'Freelance', emoji: '💻' },
+      { id: 'src-bonus', name: 'Bonus', emoji: '🎁' },
+      { id: 'src-interest', name: 'Interest', emoji: '💰' },
+      { id: 'src-refund', name: 'Refund', emoji: '↩️' },
+      { id: 'src-investment', name: 'Investment Return', emoji: '📈' },
+      { id: 'src-gift', name: 'Gift', emoji: '🎉' },
+      { id: 'src-other-income', name: 'Other Income', emoji: '🔄' },
+    ]);
+
+    let bills = ref([]);
+    let showBillsModal = ref(false);
+    let billEditingId = ref(null);
+    let newBill = reactive({
+      description: '',
+      amount: '',
+      dueDate: '',
+      status: 'unpaid',
+      notes: '',
     });
 
     // ==================== Initialization ====================
@@ -181,6 +206,8 @@ const app = createApp({
       budgets.value = (await getStorage('budgets')) || initializeBudgets();
       goals.value = (await getStorage('goals')) || [];
       recurringTransactions.value = (await getStorage('recurringTransactions')) || [];
+      // Phase 9: Load bills
+      bills.value = (await getStorage('bills')) || [];
       const storedSettings = (await getStorage('settings')) || {};
       settings.value = { ...settings.value, ...storedSettings };
 
@@ -831,6 +858,75 @@ const app = createApp({
       };
     });
 
+    // ==================== Phase 9: Income & Bill Projections ====================
+    const recurringIncomeProjection = computed(() => {
+      const recurringIncome = recurringTransactions.value
+        .filter(item => (item.type || 'expense') === 'income')
+        .map(item => ({
+          ...item,
+          monthlyEquivalent: Number(item.amount || 0) * getFrequencyMonthlyFactor(item.frequency),
+          nextDueDate: getNextRecurringDate(item),
+        }))
+        .sort((a, b) => a.nextDueDate - b.nextDueDate);
+
+      return {
+        monthlyProjected: recurringIncome.reduce((sum, item) => sum + item.monthlyEquivalent, 0),
+        next30DaysProjected: recurringIncome
+          .filter(item => (item.nextDueDate - new Date()) / (1000 * 60 * 60 * 24) <= 30)
+          .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+        items: recurringIncome.slice(0, 4),
+        count: recurringIncome.length,
+      };
+    });
+
+    const incomeProjection = computed(() => {
+      const now = new Date();
+      const thisMonthIncome = monthlyIncome.value;
+      const recurringIncome = recurringIncomeProjection.value.monthlyProjected;
+      const totalProjectedIncome = thisMonthIncome + recurringIncome;
+      const incomeTarget = settings.value.incomeTarget || 0;
+      const percentToTarget = incomeTarget > 0 ? (totalProjectedIncome / incomeTarget) * 100 : 0;
+      const remainingToTarget = Math.max(0, incomeTarget - totalProjectedIncome);
+
+      return {
+        actualThisMonth: thisMonthIncome,
+        recurringMonthly: recurringIncome,
+        total: totalProjectedIncome,
+        target: incomeTarget,
+        percentToTarget,
+        remainingToTarget,
+        onTrack: totalProjectedIncome >= incomeTarget,
+      };
+    });
+
+    const dueAlerts = computed(() => {
+      const now = new Date();
+      const dueSoon = bills.value
+        .filter(bill => {
+          if (bill.status === 'paid') return false;
+          const dueDate = new Date(bill.dueDate);
+          const daysUntilDue = (dueDate - now) / (1000 * 60 * 60 * 24);
+          return daysUntilDue >= 0 && daysUntilDue <= 7;
+        })
+        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+      const overdue = bills.value
+        .filter(bill => {
+          if (bill.status === 'paid') return false;
+          const dueDate = new Date(bill.dueDate);
+          const daysUntilDue = (dueDate - now) / (1000 * 60 * 60 * 24);
+          return daysUntilDue < 0;
+        });
+
+      return {
+        dueSoon,
+        overdue,
+        totalDueSoon: dueSoon.reduce((sum, b) => sum + Number(b.amount || 0), 0),
+        totalOverdue: overdue.reduce((sum, b) => sum + Number(b.amount || 0), 0),
+        hasAlerts: dueSoon.length > 0 || overdue.length > 0,
+      };
+    });
+
     const incomeTrend = computed(() => {
       const trend = monthlySeries.value.slice(-6);
       const current = trend[trend.length - 1] || currentMonthSummary.value;
@@ -1289,7 +1385,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
 
     // ==================== Transaction Management ====================
     function addTransaction() {
-      if (!quickAdd.amount || !quickAdd.category || !quickAdd.account) {
+      if (!quickAdd.amount || (!quickAdd.category && quickAdd.type === 'expense') || !quickAdd.account) {
         showNotification('Please fill in all required fields');
         return;
       }
@@ -1299,28 +1395,28 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         const recurring = {
           id: 'rec-' + Date.now(),
           amount: parseFloat(quickAdd.amount),
-          category: quickAdd.category,
+          category: quickAdd.type === 'income' ? quickAdd.incomeSource : quickAdd.category,
           account: quickAdd.account,
-          description: quickAdd.description || 'Recurring Transaction',
+          description: quickAdd.description || (quickAdd.type === 'income' ? 'Income' : 'Recurring Transaction'),
           date: quickAdd.date,
           frequency: quickAdd.frequency,
-          type: 'expense',
+          type: quickAdd.type, // Phase 9: Support income type
           lastGenerated: quickAdd.date,
           createdAt: new Date().toISOString(),
         };
         
         recurringTransactions.value.push(recurring);
-        showNotification(`Recurring ${quickAdd.frequency} transaction added!`);
+        showNotification(`Recurring ${quickAdd.frequency} ${quickAdd.type} added!`);
       } else {
         // Add single transaction
         const txn = {
           id: 'txn-' + Date.now(),
           amount: parseFloat(quickAdd.amount),
-          category: quickAdd.category,
+          category: quickAdd.type === 'income' ? quickAdd.incomeSource : quickAdd.category,
           account: quickAdd.account,
-          description: quickAdd.description || 'Transaction',
+          description: quickAdd.description || (quickAdd.type === 'income' ? 'Income' : 'Transaction'),
           date: quickAdd.date,
-          type: quickAdd.type,
+          type: quickAdd.type, // Phase 9: Store income/expense type
           tags: quickAdd.tags || [],
           timestamp: Date.now(),
         };
@@ -1330,7 +1426,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         recordAction('add_transaction', { txn });
         // Phase 7: Haptic feedback on transaction add
         triggerHaptic([50, 30, 100]);
-        showNotification('Transaction added!');
+        showNotification(`${quickAdd.type === 'income' ? 'Income' : 'Transaction'} added!`);
       }
       
       saveAllData();
@@ -1438,6 +1534,115 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
     function showTxnMenu(txn) {
       contextMenu.txn = txn;
       contextMenu.visible = true;
+    }
+
+    // ==================== Phase 9: Bill Management ====================
+    function addBill() {
+      if (!newBill.description || !newBill.amount || !newBill.dueDate) {
+        showNotification('Please fill in all required fields');
+        return;
+      }
+
+      const bill = {
+        id: 'bill-' + Date.now(),
+        description: newBill.description,
+        amount: parseFloat(newBill.amount),
+        dueDate: newBill.dueDate,
+        status: newBill.status || 'unpaid',
+        notes: newBill.notes || '',
+        paidHistory: [],
+        createdAt: new Date().toISOString(),
+      };
+
+      bills.value.push(bill);
+      recordAction('add_bill', { bill });
+      saveAllData();
+      showNotification('Bill added!');
+
+      // Reset form
+      newBill.description = '';
+      newBill.amount = '';
+      newBill.dueDate = '';
+      newBill.status = 'unpaid';
+      newBill.notes = '';
+    }
+
+    function markBillPaid(bill) {
+      const b = bills.value.find(x => x.id === bill.id);
+      if (b) {
+        b.status = 'paid';
+        b.paidHistory = b.paidHistory || [];
+        b.paidHistory.push({
+          date: new Date().toISOString(),
+          amount: b.amount,
+        });
+        saveAllData();
+        showNotification('Bill marked as paid!');
+        triggerHaptic([100, 50, 150]);
+      }
+    }
+
+    function unmarkBillPaid(bill) {
+      const b = bills.value.find(x => x.id === bill.id);
+      if (b) {
+        b.status = 'unpaid';
+        b.paidHistory = b.paidHistory || [];
+        b.paidHistory = b.paidHistory.slice(0, -1);
+        saveAllData();
+        showNotification('Bill marked as unpaid');
+      }
+    }
+
+    function deleteBill(bill) {
+      bills.value = bills.value.filter(b => b.id !== bill.id);
+      recordAction('delete_bill', { bill });
+      saveAllData();
+      showNotification('Bill deleted');
+      triggerHaptic([100, 50, 100, 50, 150]);
+    }
+
+    function editBill(bill) {
+      billEditingId.value = bill.id;
+      newBill.description = bill.description;
+      newBill.amount = bill.amount.toString();
+      newBill.dueDate = bill.dueDate;
+      newBill.status = bill.status;
+      newBill.notes = bill.notes || '';
+    }
+
+    function saveBillEdit() {
+      if (!newBill.description || !newBill.amount || !newBill.dueDate) {
+        showNotification('Please fill in all required fields');
+        return;
+      }
+
+      const bill = bills.value.find(b => b.id === billEditingId.value);
+      if (bill) {
+        bill.description = newBill.description;
+        bill.amount = parseFloat(newBill.amount);
+        bill.dueDate = newBill.dueDate;
+        bill.status = newBill.status;
+        bill.notes = newBill.notes;
+        saveAllData();
+        showNotification('Bill updated!');
+        
+        // Reset
+        billEditingId.value = null;
+        newBill.description = '';
+        newBill.amount = '';
+        newBill.dueDate = '';
+        newBill.status = 'unpaid';
+        newBill.notes = '';
+      }
+    }
+
+    function cancelBillEdit() {
+      billEditingId.value = null;
+      newBill.description = '';
+      newBill.amount = '';
+      newBill.dueDate = '';
+      newBill.status = 'unpaid';
+      newBill.notes = '';
     }
 
     // ==================== Receipt Parsing ====================
@@ -2128,12 +2333,13 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         setStorage('budgets', budgets.value),
         setStorage('goals', goals.value),
         setStorage('recurringTransactions', recurringTransactions.value),
+        setStorage('bills', bills.value), // Phase 9: Save bills
         setStorage('settings', settings.value),
       ]);
     }
 
     // Auto-save when any data changes
-    watch([accounts, transactions, budgets, goals, recurringTransactions, settings], saveAllData, { deep: true });
+    watch([accounts, transactions, budgets, goals, recurringTransactions, bills, settings], saveAllData, { deep: true });
 
     return {
       // State
@@ -2170,7 +2376,14 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       budgets,
       goals,
       recurringTransactions,
+      bills, // Phase 9
+      incomeSources, // Phase 9
       settings,
+      
+      // Phase 9: Bill management state
+      showBillsModal,
+      billEditingId,
+      newBill,
 
       // Computed
       currentMonth,
@@ -2185,6 +2398,9 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       spendingVelocity,
       budgetBurnDown,
       recurringExpenseProjection,
+      recurringIncomeProjection, // Phase 9
+      incomeProjection, // Phase 9
+      dueAlerts, // Phase 9
       incomeTrend,
       comparisonSummary,
       netWorthHistory,
@@ -2217,6 +2433,15 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       editTransaction,
       duplicateTransaction,
       showTxnMenu,
+      
+      // Phase 9: Bill management
+      addBill,
+      markBillPaid,
+      unmarkBillPaid,
+      deleteBill,
+      editBill,
+      saveBillEdit,
+      cancelBillEdit,
       handleReceiptCapture,
       parseReceiptWithAI,
       parseNaturalLanguage,

@@ -2742,3 +2742,351 @@ input[type="number"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   PHASE 9 — Income & Bill Management
+   ============================================================ */
+
+/* Transaction Type Toggle */
+.transaction-type-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0;
+}
+
+.type-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.type-btn:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-3);
+}
+
+.type-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+/* Income Projection Card */
+.projection-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0;
+  font-size: 0.9rem;
+}
+
+.projection-row span {
+  color: var(--text-muted);
+}
+
+.projection-row strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+/* Due Alerts */
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-2);
+  border-left: 4px solid var(--border);
+  border-radius: var(--r-md);
+  transition: all var(--transition);
+}
+
+.alert-item:hover {
+  background: var(--bg-3);
+  transform: translateX(4px);
+}
+
+.alert-overdue {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.alert-due-soon {
+  border-left-color: #facc15;
+  background: rgba(250, 204, 21, 0.08);
+}
+
+.alert-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.alert-title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.alert-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.btn-icon-small {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+
+.btn-icon-small:hover {
+  background: var(--white);
+  transform: scale(1.1);
+}
+
+/* Bills View */
+.bills-view {
+  padding: 1rem;
+}
+
+.bills-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.bills-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.bills-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.section-subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.bill-card {
+  padding: 1rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all var(--transition);
+}
+
+.bill-card:hover {
+  background: var(--bg-3);
+  border-color: var(--border-focus);
+}
+
+.bill-overdue {
+  border-left: 4px solid #ef4444;
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.bill-due-soon {
+  border-left: 4px solid #facc15;
+  background: rgba(250, 204, 21, 0.06);
+}
+
+.bill-paid {
+  border-left: 4px solid #10b981;
+  background: rgba(16, 185, 129, 0.06);
+  opacity: 0.75;
+}
+
+.bill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bill-title {
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.bill-amount {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.bill-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.overdue-badge,
+.due-soon-badge,
+.paid-badge {
+  display: inline-block;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--r-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.overdue-badge {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.due-soon-badge {
+  background: rgba(250, 204, 21, 0.2);
+  color: #d97706;
+}
+
+.paid-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.bill-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-xs {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+}
+
+/* Modal adjustments for bills */
+.modal-large {
+  max-width: 500px;
+}
+
+.form-footer {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.form-footer .btn-primary,
+.form-footer .btn-secondary {
+  flex: 1;
+}
+
+/* Income sources in quick-add */
+.select-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  transition: all var(--transition);
+  cursor: pointer;
+}
+
+.select-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-3);
+}
+
+/* Alert badge */
+.alert-badge {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-radius: var(--r-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* State colors */
+.state-positive {
+  border-color: rgba(16, 185, 129, 0.2);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.state-warning {
+  border-color: rgba(250, 204, 21, 0.2);
+  background: rgba(250, 204, 21, 0.04);
+}
+
+.state-negative {
+  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.state-neutral {
+  border-color: var(--border);
+  background: var(--bg-2);
+}
+
+/* Responsive bills */
+@media (max-width: 640px) {
+  .bills-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bill-actions {
+    margin-top: 0.5rem;
+  }
+
+  .modal-large {
+    max-width: calc(100% - 2rem);
+  }
+}
+
