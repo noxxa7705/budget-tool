@@ -72,6 +72,8 @@ const app = createApp({
       await initializeIndexedDB();
       setupServiceWorker();
       applyTheme();
+      // Phase 3: Load filter state from localStorage
+      loadFilterState();
       // Fetch AI insight on mount
       await fetchAIInsight();
     });
@@ -316,6 +318,88 @@ const app = createApp({
       </svg>`;
     }
 
+    // ==================== Phase 3: Advanced Search & Filter ====================
+    // Filter state for all filter parameters
+    const filterState = reactive({
+      text: '',
+      dateFrom: '',
+      dateTo: '',
+      type: '', // 'income', 'expense', or '' for all
+      account: '', // account ID or '' for all
+      category: '', // category ID or '' for all
+    });
+
+    // Load filter state from localStorage on mount
+    function loadFilterState() {
+      try {
+        const stored = localStorage.getItem('nightledger-filterstate');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          Object.assign(filterState, parsed);
+        }
+      } catch (err) {
+        console.warn('Failed to load filter state:', err);
+      }
+    }
+
+    // Save filter state to localStorage whenever it changes
+    function saveFilterState() {
+      try {
+        localStorage.setItem('nightledger-filterstate', JSON.stringify(filterState));
+      } catch (err) {
+        console.warn('Failed to save filter state:', err);
+      }
+    }
+
+    // Watch for changes to filterState and save to localStorage
+    watch(() => filterState, saveFilterState, { deep: true });
+
+    // Sync filterText (legacy) with filterState.text for backward compatibility
+    watch(() => filterText.value, (val) => {
+      if (filterState.text !== val) {
+        filterState.text = val;
+      }
+    });
+
+    watch(() => filterState.text, (val) => {
+      if (filterText.value !== val) {
+        filterText.value = val;
+      }
+    });
+
+    // Computed: count of active filters
+    const activeFilterCount = computed(() => {
+      let count = 0;
+      if (filterState.text) count++;
+      if (filterState.dateFrom) count++;
+      if (filterState.dateTo) count++;
+      if (filterState.type) count++;
+      if (filterState.account) count++;
+      if (filterState.category) count++;
+      return count;
+    });
+
+    // Clear all filters
+    function clearAllFilters() {
+      filterState.text = '';
+      filterState.dateFrom = '';
+      filterState.dateTo = '';
+      filterState.type = '';
+      filterState.account = '';
+      filterState.category = '';
+      showFilterModal.value = false;
+    }
+
+    // Helper to highlight matching text (escape HTML, wrap matches)
+    function highlightText(text, query) {
+      if (!query || !text) return text;
+      const escaped = String(text).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return escaped.replace(regex, '<mark>$1</mark>');
+    }
+
     // ==================== Phase 2: Smart Budget Suggestions ====================
     const suggestedBudgets = computed(() => {
       const now = new Date();
@@ -399,12 +483,50 @@ const app = createApp({
       return [...transactions.value].sort((a, b) => new Date(b.date) - new Date(a.date));
     });
 
+    // Enhanced filteredTransactions with Phase 3 multi-filter support
     const filteredTransactions = computed(() => {
-      const text = filterText.value.toLowerCase();
-      return transactions.value.filter(t =>
-        t.description.toLowerCase().includes(text) ||
-        t.category.toLowerCase().includes(text)
-      );
+      return transactions.value.filter(t => {
+        // Text search (search in description, category name, account name)
+        if (filterState.text) {
+          const searchText = filterState.text.toLowerCase();
+          const categoryName = categories.value.find(c => c.id === t.category)?.name.toLowerCase() || '';
+          const accountName = accounts.value.find(a => a.id === t.account)?.name.toLowerCase() || '';
+          const matches = t.description.toLowerCase().includes(searchText) ||
+                         categoryName.includes(searchText) ||
+                         accountName.includes(searchText);
+          if (!matches) return false;
+        }
+
+        // Date range filter
+        if (filterState.dateFrom) {
+          const txnDate = new Date(t.date);
+          const fromDate = new Date(filterState.dateFrom);
+          if (txnDate < fromDate) return false;
+        }
+        if (filterState.dateTo) {
+          const txnDate = new Date(t.date);
+          const toDate = new Date(filterState.dateTo);
+          toDate.setDate(toDate.getDate() + 1); // Include the end date
+          if (txnDate >= toDate) return false;
+        }
+
+        // Transaction type filter
+        if (filterState.type && t.type !== filterState.type) {
+          return false;
+        }
+
+        // Account filter
+        if (filterState.account && t.account !== filterState.account) {
+          return false;
+        }
+
+        // Category filter
+        if (filterState.category && t.category !== filterState.category) {
+          return false;
+        }
+
+        return true;
+      });
     });
 
     const groupedTransactions = computed(() => {
@@ -960,6 +1082,10 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       predictedCategories,
       categoryPredictionLoading,
 
+      // Phase 3: Filter state
+      filterState,
+      activeFilterCount,
+
       // Data
       accounts,
       transactions,
@@ -1007,6 +1133,10 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       nextMonth,
       getProgressOffset,
       fetchAIInsight,
+
+      // Phase 3: Filter functions
+      clearAllFilters,
+      highlightText,
     };
   },
 });

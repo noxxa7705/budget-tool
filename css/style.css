@@ -1614,6 +1614,256 @@ input[type="number"] {
   gap: 0.25rem;
 }
 
+/* ======================================================
+   PHASE 3: Advanced Search & Filter UX
+   ====================================================== */
+
+.filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.filter-bar .search-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: 0.95rem;
+  transition: var(--transition);
+}
+
+.filter-bar .search-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background: var(--bg-2);
+}
+
+.btn-filter {
+  position: relative;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  cursor: pointer;
+  transition: var(--transition);
+  font-weight: 500;
+}
+
+.btn-filter:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-2);
+}
+
+.btn-filter.active {
+  background: var(--bg-3);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  margin-left: 4px;
+  background: var(--err);
+  color: var(--white);
+  border-radius: 9px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.filter-panel {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filter-section {
+  margin-bottom: 1rem;
+}
+
+.filter-section:last-of-type {
+  margin-bottom: 0.5rem;
+}
+
+.filter-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.filter-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.filter-input {
+  flex: 1;
+  padding: 0.5rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 0.9rem;
+  transition: var(--transition);
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background: var(--bg);
+}
+
+.filter-separator {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 0.4rem 0.75rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.filter-chip:hover {
+  border-color: var(--border-focus);
+  color: var(--text);
+}
+
+.filter-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.filter-select {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background: var(--bg);
+}
+
+.filter-select option {
+  background: var(--bg-1);
+  color: var(--text);
+}
+
+.filter-footer {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+.results-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: rgba(96, 165, 250, 0.1);
+  border: 1px solid var(--info);
+  border-radius: var(--r-md);
+  font-size: 0.9rem;
+  color: var(--info);
+  margin-bottom: 1rem;
+}
+
+.clear-link {
+  background: none;
+  border: none;
+  color: var(--info);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.85rem;
+  padding: 0;
+  transition: var(--transition);
+}
+
+.clear-link:hover {
+  color: var(--white);
+}
+
+.filter-panel mark {
+  background: rgba(250, 204, 21, 0.3);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  background: var(--err);
+  color: var(--white);
+  border-radius: 8px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  position: absolute;
+  top: -4px;
+  right: -4px;
+}
+
 /* Mobile adjustments for new elements */
 @media (max-width: 640px) {
   .suggestion-banner {
@@ -1637,5 +1887,55 @@ input[type="number"] {
   .budget-suggestion {
     margin-top: 0.5rem;
     padding-top: 0.5rem;
+  }
+
+  /* Phase 3: Mobile filter adjustments */
+  .filter-panel {
+    padding: 0.75rem;
+  }
+
+  .filter-section {
+    margin-bottom: 0.75rem;
+  }
+
+  .filter-row {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .filter-input {
+    width: 100%;
+  }
+
+  .filter-separator {
+    display: none;
+  }
+
+  .filter-chips {
+    gap: 0.35rem;
+  }
+
+  .filter-chip {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .filter-footer {
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+  }
+
+  .btn-sm {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .results-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
   }
 }

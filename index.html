@@ -132,14 +132,77 @@
     <!-- Transactions Tab -->
     <div v-show="activeTab === 'transactions'" class="tab-content">
       <div class="transactions-view">
+        <!-- Phase 3: Enhanced Filter Bar -->
         <div class="filter-bar">
-          <input v-model="filterText" type="text" placeholder="Search transactions..." class="search-input">
-          <button @click="showFilterModal = true" class="btn-filter">⊞</button>
+          <input v-model="filterState.text" type="text" placeholder="Search transactions..." class="search-input">
+          <button @click="showFilterModal = !showFilterModal" class="btn-filter" :class="{ active: showFilterModal }">
+            ⊞
+            <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
+          </button>
+        </div>
+
+        <!-- Phase 3: Filter Panel -->
+        <div v-if="showFilterModal" class="filter-panel">
+          <div class="filter-section">
+            <h4 class="filter-label">Date Range</h4>
+            <div class="filter-row">
+              <input v-model="filterState.dateFrom" type="date" class="filter-input" placeholder="From">
+              <span class="filter-separator">→</span>
+              <input v-model="filterState.dateTo" type="date" class="filter-input" placeholder="To">
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <h4 class="filter-label">Type</h4>
+            <div class="filter-chips">
+              <button :class="['filter-chip', { active: filterState.type === '' }]" @click="filterState.type = ''">
+                All
+              </button>
+              <button :class="['filter-chip', { active: filterState.type === 'income' }]" @click="filterState.type = 'income'">
+                💰 Income
+              </button>
+              <button :class="['filter-chip', { active: filterState.type === 'expense' }]" @click="filterState.type = 'expense'">
+                💸 Expense
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <h4 class="filter-label">Account</h4>
+            <select v-model="filterState.account" class="filter-select">
+              <option value="">All Accounts</option>
+              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
+                {{ acc.name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="filter-section">
+            <h4 class="filter-label">Category</h4>
+            <select v-model="filterState.category" class="filter-select">
+              <option value="">All Categories</option>
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                {{ cat.emoji }} {{ cat.name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="filter-footer">
+            <button @click="clearAllFilters" class="btn-secondary btn-sm">Clear All</button>
+            <button @click="showFilterModal = false" class="btn-primary btn-sm">Done</button>
+          </div>
+        </div>
+
+        <!-- Phase 3: Results Count -->
+        <div v-if="activeFilterCount > 0 || filterState.text" class="results-info">
+          {{ filteredTransactions.length }} result{{ filteredTransactions.length !== 1 ? 's' : '' }}
+          <button v-if="activeFilterCount > 0" @click="clearAllFilters" class="clear-link">Clear filters</button>
         </div>
 
         <div v-if="filteredTransactions.length === 0" class="empty-state">
           <div class="empty-icon">📭</div>
           <p>No transactions found</p>
+          <p class="text-muted" v-if="activeFilterCount > 0 || filterState.text">Try adjusting your filters</p>
         </div>
         <div v-else class="transactions-list">
           <div class="txn-group" v-for="group in groupedTransactions" :key="group.date">
@@ -147,7 +210,11 @@
             <div v-for="txn in group.txns" :key="txn.id" class="txn-row" @contextmenu.prevent="showTxnMenu(txn)">
               <div class="txn-info">
                 <div class="txn-desc">{{ txn.description }}</div>
-                <div class="txn-category">{{ txn.category }} • {{ txn.account }}</div>
+                <div class="txn-category">
+                  {{ categories.find(c => c.id === txn.category)?.emoji }} 
+                  {{ categories.find(c => c.id === txn.category)?.name }} • 
+                  {{ accounts.find(a => a.id === txn.account)?.name }}
+                </div>
               </div>
               <div class="txn-amount" :class="txn.type === 'expense' ? 'negative' : 'positive'">
                 {{ txn.type === 'expense' ? '-' : '+' }}{{ formatCurrency(Math.abs(txn.amount)) }}
@@ -307,6 +374,7 @@
             @click="activeTab = 'transactions'"
             title="Transactions">
       <span class="nav-icon">≣</span>
+      <span v-if="activeFilterCount > 0 && activeTab === 'transactions'" class="nav-badge">{{ activeFilterCount }}</span>
       <span class="nav-label">Txn</span>
     </button>
     <button :class="['nav-btn', { active: activeTab === 'budget' }]"
