@@ -3864,4 +3864,13 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
   },
 });
 
+// Register QuickAddModal components
+if (window.ModalTabs) app.component('ModalTabs', window.ModalTabs);
+if (window.TransactionTypeToggle) app.component('TransactionTypeToggle', window.TransactionTypeToggle);
+if (window.ModalFooter) app.component('ModalFooter', window.ModalFooter);
+if (window.ManualEntryForm) app.component('ManualEntryForm', window.ManualEntryForm);
+if (window.ReceiptEntryForm) app.component('ReceiptEntryForm', window.ReceiptEntryForm);
+if (window.NaturalEntryForm) app.component('NaturalEntryForm', window.NaturalEntryForm);
+if (window.QuickAddModal) app.component('QuickAddModal', window.QuickAddModal);
+
 app.mount('#app');

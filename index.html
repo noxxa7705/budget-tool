@@ -868,212 +868,41 @@
     +
   </button>
 
-  <!-- Quick add menu -->
-  <div v-if="showQuickAddMenu" class="modal-overlay modal-overlay-transaction" @click.self="closeQuickAdd">
-    <div class="transaction-shell bottom-sheet">
-      <div class="sheet-header modal-shell-header">
-        <div>
-          <div class="modal-shell-kicker">Transaction Intake</div>
-          <h2>Add Transaction</h2>
-        </div>
-        <button class="btn-close" @click="closeQuickAdd">×</button>
-      </div>
-      <mode-tabs
-        :modes="quickAddModes"
-        :active-mode="quickAddMode"
-        @select="setQuickAddMode"
-      ></mode-tabs>
-      <div class="sheet-content">
-        <!-- Manual entry -->
-        <div v-show="quickAddMode === 'manual'" class="form-section">
-          <!-- Phase 9: Transaction Type Toggle (Income/Expense) -->
-          <div class="form-group">
-            <label>Type</label>
-            <div class="transaction-type-toggle">
-              <button :class="['type-btn', { active: quickAdd.type === 'expense' }]" @click="quickAdd.type = 'expense'">
-                💸 Expense
-              </button>
-              <button :class="['type-btn', { active: quickAdd.type === 'income' }]" @click="quickAdd.type = 'income'">
-                💰 Income
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Amount</label>
-            <div class="numpad-container">
-              <input v-model="quickAdd.amount" type="number" inputmode="decimal" placeholder="0.00" class="amount-input" @focus="focusAmountInput($event.target)">
-            </div>
-          </div>
-          <!-- Phase 9: Income Source Selector (shown only for income) -->
-          <div v-if="quickAdd.type === 'income'" class="form-group">
-            <label>Income Source</label>
-            <select v-model="quickAdd.incomeSource" class="select-input">
-              <option v-for="src in incomeSources" :key="src.id" :value="src.id">
-                {{ src.emoji }} {{ src.name }}
-              </option>
-            </select>
-          </div>
-          <!-- Category selector (hidden for income, shown for expense) -->
-          <div v-if="quickAdd.type === 'expense'" class="form-group">
-            <label>Category</label>
-            <div class="category-chips">
-              <button v-for="cat in categories" :key="cat.id"
-                      :class="['chip', { active: quickAdd.category === cat.id }]"
-                      @click="quickAdd.category = cat.id">
-                {{ cat.emoji }} {{ cat.name }}
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Account</label>
-            <select v-model="quickAdd.account" class="select-input">
-              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
-                {{ acc.name }}
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <div class="merchant-autocomplete">
-              <input v-model="quickAdd.description" 
-                     @input="getMerchantSuggestions(quickAdd.description); showMerchantSuggestions = quickAdd.description.length > 1"
-                     @focus="showMerchantSuggestions = quickAdd.description.length > 1"
-                     @blur="setTimeout(() => showMerchantSuggestions = false, 200)"
-                     type="text" placeholder="What was this for?" class="text-input">
-              <!-- Phase 4: Merchant Suggestions -->
-              <div v-if="showMerchantSuggestions && merchantSuggestions.length > 0" class="autocomplete-dropdown">
-                <div v-for="merchant in merchantSuggestions" 
-                     :key="merchant"
-                     @click="selectMerchantSuggestion(merchant)"
-                     class="autocomplete-item">
-                  {{ merchant }}
-                </div>
-              </div>
-            </div>
-            <!-- AI Category Predictions -->
-            <div v-if="predictedCategories.length > 0 || categoryPredictionLoading" class="category-predictions">
-              <div v-if="categoryPredictionLoading" class="prediction-loading">
-                <span class="spinner">⟳</span> Analyzing...
-              </div>
-              <div v-else class="predicted-options">
-                <div class="prediction-label">Suggested categories:</div>
-                <div class="prediction-chips">
-                  <button v-for="(catId, idx) in predictedCategories" :key="catId"
-                          @click="quickAdd.category = catId"
-                          class="prediction-chip"
-                          :title="categories.find(c => c.id === catId)?.name">
-                    {{ categories.find(c => c.id === catId)?.emoji }}
-                    <span class="confidence">{{ idx === 0 ? 'High' : idx === 1 ? 'Med' : 'Low' }}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Date</label>
-            <input v-model="quickAdd.date" type="date" class="text-input">
-          </div>
-          <!-- Phase 4: Tags Input -->
-          <div class="form-group">
-            <label>Tags (optional)</label>
-            <input v-model="quickAdd.tagsInput" type="text" placeholder="Add tags separated by commas" class="text-input" @change="quickAdd.tags = quickAdd.tagsInput.split(',').map(t => t.trim()).filter(t => t)">
-            <div v-if="quickAdd.tags.length > 0" class="tag-chips">
-              <span v-for="(tag, idx) in quickAdd.tags" :key="idx" class="tag-chip">
-                {{ tag }}
-                <button @click="quickAdd.tags.splice(idx, 1); quickAdd.tagsInput = quickAdd.tags.join(', ')" class="tag-remove">×</button>
-              </span>
-            </div>
-          </div>
-          <!-- Phase 2: Recurring Transaction Options -->
-          <div class="form-group">
-            <label>
-              <input type="checkbox" v-model="quickAdd.isRecurring" class="checkbox-input">
-              Make this recurring
-            </label>
-          </div>
-          <div v-if="quickAdd.isRecurring" class="form-group">
-            <label>Frequency</label>
-            <select v-model="quickAdd.frequency" class="select-input">
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Bi-weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-            </select>
-          </div>
-          <div class="sheet-footer">
-            <button @click="closeQuickAdd" class="btn-secondary">Cancel</button>
-            <button @click="addTransaction" class="btn-primary btn-full">{{ quickAdd.isRecurring ? 'Add Recurring' : (quickAdd.type === 'income' ? 'Add Income' : 'Add Expense') }}</button>
-          </div>
-        </div>
+  <!-- Quick Add Modal (Refactored Component) -->
+  <quick-add-modal
+    :is-open="showQuickAddMenu"
+    :modes="quickAddModes"
+    :active-mode="quickAddMode"
+    :form="quickAdd"
+    :categories="categories"
+    :accounts="accounts"
+    :income-sources="incomeSources"
+    :receipt-image="receiptImage"
+    :receipt-parsed="receiptParsed"
+    :receipt-parsing="receiptParsing"
+    :natural-language-input="naturalLanguageInput"
+    :merchant-suggestions="merchantSuggestions"
+    :show-merchant-suggestions="showMerchantSuggestions"
+    :predicted-categories="predictedCategories"
+    :category-prediction-loading="categoryPredictionLoading"
+    @close="closeQuickAdd"
+    @update:activeMode="setQuickAddMode"
+    @update:form="(updates) => Object.assign(quickAdd, updates)"
+    @update:receiptImage="receiptImage = $event"
+    @update:receiptParsed="receiptParsed = $event"
+    @update:naturalLanguageInput="naturalLanguageInput = $event"
+    @merchant-input="getMerchantSuggestions"
+    @merchant-focus="showMerchantSuggestions = quickAdd.description.length > 1"
+    @merchant-blur="setTimeout(() => showMerchantSuggestions = false, 200)"
+    @merchant-select="selectMerchantSuggestion"
+    @add-transaction="addTransaction"
+    @add-receipt-transaction="addReceiptTransaction"
+    @parse-natural-language="parseNaturalLanguage"
+    @upload-receipt="$refs.receiptFileInput?.click()"
+  ></quick-add-modal>
 
-        <!-- Receipt OCR -->
-        <div v-show="quickAddMode === 'receipt'" class="form-section">
-          <div v-if="!receiptImage" class="receipt-upload">
-            <input type="file" ref="receiptFileInput" accept="image/*" capture="environment" @change="handleReceiptCapture" style="display: none">
-            <button @click="$refs.receiptFileInput.click()" class="btn-large btn-primary">
-              📷 Take Photo
-            </button>
-            <p class="text-muted">or</p>
-            <button @click="$refs.receiptFileInput.click()" class="btn-large btn-secondary">
-              📁 Upload Image
-            </button>
-          </div>
-          <div v-else class="receipt-preview">
-            <img :src="receiptImage" alt="Receipt" class="receipt-thumbnail">
-            <button @click="receiptImage = null; receiptParsed = null" class="btn-secondary">Change Photo</button>
-            
-            <div v-if="receiptParsing" class="loading-spinner">
-              <span>Parsing receipt...</span>
-            </div>
-            <div v-else-if="receiptParsed" class="receipt-form">
-              <div class="form-group">
-                <label>Merchant</label>
-                <input v-model="receiptParsed.merchant" type="text" class="text-input">
-              </div>
-              <div class="form-group">
-                <label>Amount</label>
-                <input v-model="receiptParsed.amount" type="number" step="0.01" class="text-input">
-              </div>
-              <div class="form-group">
-                <label>Date</label>
-                <input v-model="receiptParsed.date" type="date" class="text-input">
-              </div>
-              <div class="form-group">
-                <label>Category</label>
-                <select v-model="receiptParsed.category" class="select-input">
-                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                    {{ cat.emoji }} {{ cat.name }}
-                  </option>
-                </select>
-              </div>
-              <div v-if="receiptParsed.items && receiptParsed.items.length > 0" class="receipt-items">
-                <details>
-                  <summary>Items ({{ receiptParsed.items.length }})</summary>
-                  <div v-for="(item, i) in receiptParsed.items" :key="i" class="item-row">
-                    <span>{{ item.description }} x{{ item.qty }}</span>
-                    <span>{{ formatCurrency(item.price) }}</span>
-                  </div>
-                </details>
-              </div>
-              <button @click="addReceiptTransaction" class="btn-primary btn-full">Save Transaction</button>
-              <button @click="addReceiptTransaction(true)" class="btn-secondary btn-full">Save & Repeat</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Natural language -->
-        <div v-show="quickAddMode === 'natural'" class="form-section">
-          <div class="form-group">
-            <label>Describe your transaction</label>
-            <textarea v-model="naturalLanguageInput" placeholder="e.g., 'spent $45 on groceries at whole foods this morning'" class="textarea-input"></textarea>
-          </div>
-          <button @click="parseNaturalLanguage" :disabled="!naturalLanguageInput.trim()" class="btn-primary btn-full">
-            Parse
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- Hidden file input for receipt upload -->
+  <input type="file" ref="receiptFileInput" accept="image/*" capture="environment" @change="handleReceiptCapture" style="display: none">
 
 
   <!-- Device Sync Modal (Phase 6) -->
@@ -2215,6 +2044,15 @@
 <script src="js/receipt-parser.js"></script>
 <script src="js/category-customizer.js"></script>
 <script src="js/ui-shell.js"></script>
+<!-- QuickAddModal Configuration & Components -->
+<script src="js/modal-config.js"></script>
+<script src="js/components/ModalTabs.js"></script>
+<script src="js/components/TransactionTypeToggle.js"></script>
+<script src="js/components/ModalFooter.js"></script>
+<script src="js/components/ManualEntryForm.js"></script>
+<script src="js/components/ReceiptEntryForm.js"></script>
+<script src="js/components/NaturalEntryForm.js"></script>
+<script src="js/components/QuickAddModal.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
