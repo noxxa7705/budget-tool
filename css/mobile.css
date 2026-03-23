@@ -79,16 +79,19 @@
 
   /* FAB positioning for mobile */
   .fab {
+    display: flex;
     bottom: calc(var(--bottom-nav-h) + 12px);
     right: 12px;
-    width: 48px;
-    height: 48px;
-    font-size: 24px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    font-size: 22px;
   }
 
   /* Navigation bar - optimize for mobile */
   .nav-inner {
     padding: 0 12px;
+    gap: 0.55rem;
   }
 
   .nav-logo {
