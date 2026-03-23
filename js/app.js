@@ -2238,6 +2238,378 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       }
     }
 
+    // ==================== PHASE 10: ADVANCED REPORTS & EXPORT ====================
+
+    // Phase 10: Reports State
+    const activeReportTab = ref('summary');
+    const comparisonType = ref('monthly');
+    const reportDateRange = reactive({
+      from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+      to: new Date().toISOString().split('T')[0],
+    });
+    const taxFilters = reactive({
+      showOnlyTagged: false,
+    });
+    const exportPreviewContent = ref('');
+
+    // Phase 10: Helper to format signed currency
+    function formatSignedCurrency(amount) {
+      if (amount >= 0) return `+${formatCurrency(amount)}`;
+      return formatCurrency(amount);
+    }
+
+    // Phase 10: Set report date range
+    function setReportDateRange(preset) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      
+      if (preset === 'thisMonth') {
+        reportDateRange.from = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+        reportDateRange.to = new Date().toISOString().split('T')[0];
+      } else if (preset === 'lastMonth') {
+        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+        reportDateRange.from = new Date(lastMonthYear, lastMonth, 1).toISOString().split('T')[0];
+        reportDateRange.to = new Date(lastMonthYear, lastMonth, daysInLastMonth).toISOString().split('T')[0];
+      } else if (preset === 'thisYear') {
+        reportDateRange.from = new Date(currentYear, 0, 1).toISOString().split('T')[0];
+        reportDateRange.to = new Date().toISOString().split('T')[0];
+      }
+    }
+
+    // Phase 10: Filtered transactions for tax tagging
+    const filteredTransactionsForTax = computed(() => {
+      return transactions.value
+        .filter(txn => {
+          const txnDate = new Date(txn.date);
+          const fromDate = new Date(reportDateRange.from);
+          const toDate = new Date(reportDateRange.to);
+          return txnDate >= fromDate && txnDate <= toDate;
+        })
+        .filter(txn => !taxFilters.showOnlyTagged || txn.isTaxRelevant)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+    });
+
+    // Phase 10: Report metrics computed property
+    const reportMetrics = computed(() => {
+      const fromDate = new Date(reportDateRange.from);
+      const toDate = new Date(reportDateRange.to);
+
+      // Filter transactions in date range
+      const rangeTransactions = transactions.value.filter(txn => {
+        const txnDate = new Date(txn.date);
+        return txnDate >= fromDate && txnDate <= toDate;
+      });
+
+      // Summary metrics
+      const totalIncome = rangeTransactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+      const totalExpenses = rangeTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+      const netCashFlow = totalIncome - totalExpenses;
+      const savingsRate = totalIncome > 0 ? (netCashFlow / totalIncome) * 100 : 0;
+
+      // Category breakdown
+      const categoryBreakdown = categories.value.map(cat => {
+        const catTotal = rangeTransactions
+          .filter(t => t.category === cat.id && t.type === 'expense')
+          .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        return {
+          id: cat.id,
+          name: cat.name,
+          emoji: cat.emoji,
+          total: catTotal,
+          percentage: totalExpenses > 0 ? (catTotal / totalExpenses) * 100 : 0,
+        };
+      }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
+
+      // Tax metrics
+      const taxDeductibleExpenses = rangeTransactions
+        .filter(t => t.type === 'expense' && t.isTaxRelevant)
+        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+      const taxableIncome = rangeTransactions
+        .filter(t => t.type === 'income' && t.isTaxRelevant)
+        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+      const taxTaggedCount = rangeTransactions.filter(t => t.isTaxRelevant).length;
+
+      const taxCategoryBreakdown = categories.value.map(cat => {
+        const catDeductible = rangeTransactions
+          .filter(t => t.category === cat.id && t.type === 'expense' && t.isTaxRelevant)
+          .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        const catCount = rangeTransactions.filter(t => t.category === cat.id && t.isTaxRelevant).length;
+        return {
+          id: cat.id,
+          name: cat.name,
+          emoji: cat.emoji,
+          deductible: catDeductible,
+          count: catCount,
+        };
+      }).filter(c => c.deductible > 0 || c.count > 0).sort((a, b) => b.deductible - a.deductible);
+
+      // Budget variance metrics
+      const currentMonth = new Date();
+      const varianceBreakdown = categories.value.map(cat => {
+        const budget = budgets.value.find(b => b.category === cat.id);
+        const budgetAmount = budget ? parseFloat(budget.limit || 0) : 0;
+        const actual = rangeTransactions
+          .filter(t => t.category === cat.id && t.type === 'expense')
+          .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        const variance = actual - budgetAmount;
+        const variancePercent = budgetAmount > 0 ? (variance / budgetAmount) * 100 : 0;
+        return {
+          id: cat.id,
+          name: cat.name,
+          emoji: cat.emoji,
+          budgeted: budgetAmount,
+          actual: actual,
+          variance: variance,
+          variancePercent: variancePercent,
+        };
+      }).filter(c => c.budgeted > 0 || c.actual > 0).sort((a, b) => b.actual - a.actual);
+
+      const totalBudgeted = varianceBreakdown.reduce((sum, c) => sum + c.budgeted, 0);
+      const totalActualExpenses = varianceBreakdown.reduce((sum, c) => sum + c.actual, 0);
+      const totalRemaining = totalBudgeted - totalActualExpenses;
+      const budgetEfficiency = totalBudgeted > 0 ? (totalRemaining / totalBudgeted) * 100 : 0;
+
+      // Comparison metrics
+      let comparisonBreakdown = [];
+      let comparisonCurrentIncome = 0;
+      let comparisonPreviousIncome = 0;
+      let comparisonCurrentExpenses = 0;
+      let comparisonPreviousExpenses = 0;
+
+      if (comparisonType.value === 'monthly') {
+        const thisMonthStart = fromDate;
+        const thisMonthEnd = toDate;
+        const lastMonthStart = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth(), 0);
+
+        const thisMonthTxns = rangeTransactions;
+        const lastMonthTxns = transactions.value.filter(txn => {
+          const txnDate = new Date(txn.date);
+          return txnDate >= lastMonthStart && txnDate <= lastMonthEnd;
+        });
+
+        comparisonCurrentIncome = thisMonthTxns.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        comparisonPreviousIncome = lastMonthTxns.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        comparisonCurrentExpenses = thisMonthTxns.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        comparisonPreviousExpenses = lastMonthTxns.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+        comparisonBreakdown = categories.value.map(cat => {
+          const currentAmount = thisMonthTxns.filter(t => t.category === cat.id && t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+          const previousAmount = lastMonthTxns.filter(t => t.category === cat.id && t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+          const change = currentAmount - previousAmount;
+          const changePercent = previousAmount > 0 ? (change / previousAmount) * 100 : (currentAmount > 0 ? 100 : 0);
+          return {
+            id: cat.id,
+            name: cat.name,
+            emoji: cat.emoji,
+            current: currentAmount,
+            previous: previousAmount,
+            change: change,
+            changePercent: changePercent,
+          };
+        }).filter(c => c.current > 0 || c.previous > 0).sort((a, b) => b.current - a.current);
+      } else {
+        const thisYearStart = new Date(fromDate.getFullYear(), 0, 1);
+        const thisYearEnd = new Date(fromDate.getFullYear(), 11, 31);
+        const lastYearStart = new Date(fromDate.getFullYear() - 1, 0, 1);
+        const lastYearEnd = new Date(fromDate.getFullYear() - 1, 11, 31);
+
+        const thisYearTxns = transactions.value.filter(txn => {
+          const txnDate = new Date(txn.date);
+          return txnDate >= thisYearStart && txnDate <= thisYearEnd;
+        });
+        const lastYearTxns = transactions.value.filter(txn => {
+          const txnDate = new Date(txn.date);
+          return txnDate >= lastYearStart && txnDate <= lastYearEnd;
+        });
+
+        comparisonCurrentIncome = thisYearTxns.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        comparisonPreviousIncome = lastYearTxns.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        comparisonCurrentExpenses = thisYearTxns.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        comparisonPreviousExpenses = lastYearTxns.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+        comparisonBreakdown = categories.value.map(cat => {
+          const currentAmount = thisYearTxns.filter(t => t.category === cat.id && t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+          const previousAmount = lastYearTxns.filter(t => t.category === cat.id && t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+          const change = currentAmount - previousAmount;
+          const changePercent = previousAmount > 0 ? (change / previousAmount) * 100 : (currentAmount > 0 ? 100 : 0);
+          return {
+            id: cat.id,
+            name: cat.name,
+            emoji: cat.emoji,
+            current: currentAmount,
+            previous: previousAmount,
+            change: change,
+            changePercent: changePercent,
+          };
+        }).filter(c => c.current > 0 || c.previous > 0).sort((a, b) => b.current - a.current);
+      }
+
+      return {
+        totalIncome,
+        totalExpenses,
+        netCashFlow,
+        savingsRate,
+        categoryBreakdown,
+        taxDeductibleExpenses,
+        taxableIncome,
+        taxTaggedCount,
+        taxCategoryBreakdown,
+        varianceBreakdown,
+        totalBudgeted,
+        totalActualExpenses,
+        totalRemaining,
+        budgetEfficiency,
+        comparisonBreakdown,
+        comparisonCurrentIncome,
+        comparisonPreviousIncome,
+        comparisonCurrentExpenses,
+        comparisonPreviousExpenses,
+      };
+    });
+
+    // Phase 10: Print report
+    function printReport(type) {
+      const element = document.getElementById(`report${type.charAt(0).toUpperCase() + type.slice(1)}`);
+      if (element) {
+        const printWindow = window.open('', '', 'height=600,width=800');
+        printWindow.document.write('<html><head><title>Report</title>');
+        printWindow.document.write('<style>');
+        printWindow.document.write(getComputedStyle(document.documentElement).cssText);
+        printWindow.document.write('</style></head><body>');
+        printWindow.document.write(element.innerHTML);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 250);
+      }
+    }
+
+    // Phase 10: Download report as PDF (using print-to-PDF)
+    function downloadReportPDF(type) {
+      const element = document.getElementById(`report${type.charAt(0).toUpperCase() + type.slice(1)}`);
+      if (element) {
+        const style = document.createElement('style');
+        style.textContent = `
+          @media print {
+            body { background: white; color: black; margin: 0; padding: 1rem; }
+            .report-content { page-break-inside: avoid; }
+            .metric-box { border: 1px solid #000; page-break-inside: avoid; }
+            .table-row, .table-header { page-break-inside: avoid; }
+          }
+        `;
+        document.head.appendChild(style);
+        const printWindow = window.open('', '', 'height=600,width=800');
+        printWindow.document.write('<!DOCTYPE html><html><head><title>Report</title>');
+        printWindow.document.write('<meta charset="UTF-8">');
+        printWindow.document.write(style.outerHTML);
+        printWindow.document.write('</head><body>');
+        printWindow.document.write(element.innerHTML);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 250);
+        document.head.removeChild(style);
+      }
+    }
+
+    // Phase 10: Download executive summary
+    function downloadExecutiveSummary() {
+      const summary = {
+        generated: new Date().toISOString(),
+        period: `${reportDateRange.from} to ${reportDateRange.to}`,
+        metrics: reportMetrics.value,
+        accounts: accounts.value.map(a => ({ name: a.name, balance: a.balance })),
+      };
+      const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `executive-summary-${new Date().toISOString().split('T')[0]}.json`);
+      showNotification('Executive summary downloaded!');
+    }
+
+    // Phase 10: Download full data export JSON
+    function downloadFullDataJSON() {
+      const data = {
+        version: '1.0',
+        generated: new Date().toISOString(),
+        accounts: accounts.value,
+        transactions: transactions.value,
+        categories: categories.value,
+        budgets: budgets.value,
+        goals: goals.value,
+        bills: bills.value,
+        settings: {
+          currency: settings.value.currency,
+          theme: settings.value.theme,
+        },
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `night-ledger-export-${new Date().toISOString().split('T')[0]}.json`);
+      showNotification('Full data export downloaded!');
+    }
+
+    // Phase 10: Export transactions as CSV
+    function exportTransactionsCSV() {
+      const headers = ['Date', 'Description', 'Category', 'Account', 'Type', 'Amount', 'Tax Tagged'];
+      const rows = transactions.value.map(t => {
+        const cat = categories.value.find(c => c.id === t.category);
+        const acc = accounts.value.find(a => a.id === t.account);
+        return [
+          formatDate(t.date),
+          t.description,
+          cat ? cat.name : '',
+          acc ? acc.name : '',
+          t.type,
+          t.amount,
+          t.isTaxRelevant ? 'Yes' : 'No',
+        ];
+      });
+      
+      let csv = headers.join(',') + '\n';
+      rows.forEach(row => {
+        csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+      });
+      
+      const blob = new Blob([csv], { type: 'text/csv' });
+      downloadBlob(blob, `transactions-${new Date().toISOString().split('T')[0]}.csv`);
+      showNotification('Transactions exported as CSV!');
+    }
+
+    // Phase 10: Helper function to download blob
+    function downloadBlob(blob, filename) {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
+
+    // Update export preview when tab changes
+    watch(() => activeReportTab.value, (newTab) => {
+      if (newTab === 'export') {
+        exportPreviewContent.value = JSON.stringify({
+          generated: new Date().toISOString(),
+          accounts: accounts.value.length,
+          transactions: transactions.value.length,
+          totalAmount: transactions.value.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0),
+        }, null, 2);
+      }
+    });
+
     // Export data for device sync
     function generateSyncToken() {
       const data = {
@@ -2507,6 +2879,22 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       performRefresh,
       triggerHaptic,
       focusAmountInput,
+
+      // Phase 10: Advanced Reports & Export
+      activeReportTab,
+      comparisonType,
+      reportDateRange,
+      reportMetrics,
+      taxFilters,
+      filteredTransactionsForTax,
+      exportPreviewContent,
+      setReportDateRange,
+      printReport,
+      downloadReportPDF,
+      downloadExecutiveSummary,
+      downloadFullDataJSON,
+      exportTransactionsCSV,
+      formatSignedCurrency,
     };
   },
 });

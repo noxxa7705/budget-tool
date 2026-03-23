@@ -3090,3 +3090,582 @@ input[type="number"] {
   }
 }
 
+/* ============================================================
+   PHASE 10: ADVANCED REPORTS & EXPORT
+   ============================================================ */
+
+.reports-view {
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.reports-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.reports-header .section-title {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.reports-header .text-muted {
+  font-size: 0.95rem;
+}
+
+/* Report Tabs Navigation */
+.report-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.report-tab {
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.report-tab:hover {
+  border-color: var(--border-focus);
+  color: var(--text);
+}
+
+.report-tab.active {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+}
+
+/* Date Range Controls */
+.report-date-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto auto;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  align-items: end;
+}
+
+.report-date-range .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.report-date-range label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.report-date-range .text-input {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+/* Report Section */
+.report-section {
+  margin-bottom: 2rem;
+}
+
+.report-section-title {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.report-content {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+}
+
+.report-subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Summary Metrics Grid */
+.summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.metric-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.metric-value.positive {
+  color: #10b981;
+}
+
+.metric-value.negative {
+  color: #ef4444;
+}
+
+/* Tables */
+.category-report-table,
+.tax-category-table,
+.variance-table,
+.comparison-table {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border-focus);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.table-header.variance-table ~ .table-header,
+.variance-table .table-header {
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+}
+
+.table-header.comparison-table ~ .table-header,
+.comparison-table .table-header {
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+}
+
+.tax-category-table .table-header {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.table-row.over-budget {
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.variance-table .table-row {
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+}
+
+.comparison-table .table-row {
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+}
+
+.tax-category-table .table-row {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
+.table-col-name {
+  font-weight: 500;
+}
+
+.table-col-amount,
+.table-col-percent,
+.table-col-count {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.table-col-amount.positive {
+  color: #10b981;
+}
+
+.table-col-amount.negative {
+  color: #ef4444;
+}
+
+.table-col-percent.positive {
+  color: #10b981;
+}
+
+.table-col-percent.negative {
+  color: #ef4444;
+}
+
+/* Report Actions */
+.report-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  justify-content: center;
+}
+
+.report-actions .btn-secondary {
+  flex: 1;
+  max-width: 200px;
+}
+
+/* Tax Tagging Section */
+.tax-tagging-section {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.tax-filter {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tax-filter label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.tax-filter input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.transactions-for-tax {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.tax-transaction {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: all var(--transition);
+}
+
+.tax-transaction:hover {
+  border-color: var(--border-focus);
+}
+
+.tax-txn-info {
+  flex: 1;
+}
+
+.tax-txn-desc {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.tax-txn-date {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.tax-txn-amount {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  min-width: 100px;
+  text-align: right;
+}
+
+.tax-txn-amount.positive {
+  color: #10b981;
+}
+
+.tax-txn-amount.negative {
+  color: #ef4444;
+}
+
+.tax-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all var(--transition);
+}
+
+.tax-checkbox:hover {
+  border-color: var(--border-focus);
+  background: rgba(96, 165, 250, 0.05);
+}
+
+.tax-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.tax-checkbox input[type="checkbox"]:checked {
+  accent-color: #60a5fa;
+}
+
+/* Comparison Report */
+.comparison-type-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.comparison-btn {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.comparison-btn:hover {
+  border-color: var(--border-focus);
+  color: var(--text);
+}
+
+.comparison-btn.active {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+  color: #60a5fa;
+}
+
+/* Export Options */
+.export-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.export-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+  text-align: center;
+  transition: all var(--transition);
+}
+
+.export-card:hover {
+  border-color: var(--border-focus);
+  transform: translateY(-2px);
+}
+
+.export-card h4 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.export-card .text-muted {
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.export-card .btn-primary {
+  width: 100%;
+}
+
+/* Export Preview */
+.export-preview {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.preview-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.preview-box pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Print Styles */
+@media print {
+  .report-tabs,
+  .report-date-range,
+  .report-actions,
+  .nav,
+  .bottom-nav,
+  .fab {
+    display: none !important;
+  }
+
+  .reports-view {
+    padding: 0;
+    max-width: 100%;
+  }
+
+  .report-content,
+  .report-section {
+    page-break-inside: avoid;
+    border: none;
+    padding: 0;
+    margin: 0 0 2rem 0;
+  }
+
+  .metric-box {
+    border: 1px solid #000;
+    page-break-inside: avoid;
+  }
+
+  .table-row,
+  .table-header {
+    page-break-inside: avoid;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+}
+
+/* Responsive Report Layout */
+@media (max-width: 768px) {
+  .report-date-range {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .report-date-range .btn-secondary {
+    grid-column: 1 / -1;
+  }
+
+  .summary-metrics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .metric-box {
+    padding: 0.75rem;
+  }
+
+  .metric-value {
+    font-size: 1.25rem;
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 0.5rem;
+  }
+
+  .table-col-amount,
+  .table-col-percent,
+  .table-col-count {
+    font-size: 0.8rem;
+  }
+
+  .export-options {
+    grid-template-columns: 1fr;
+  }
+
+  .report-actions {
+    flex-direction: column;
+  }
+
+  .report-actions .btn-secondary {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .report-tabs {
+    gap: 0.25rem;
+  }
+
+  .report-tab {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .reports-header .section-title {
+    font-size: 1.25rem;
+  }
+
+  .summary-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-value {
+    font-size: 1.1rem;
+  }
+
+  .report-date-range {
+    grid-template-columns: 1fr;
+  }
+
+  .tax-transaction {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .tax-txn-amount {
+    min-width: 80px;
+  }
+}
+

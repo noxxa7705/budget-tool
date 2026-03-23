@@ -875,6 +875,13 @@
       <span v-if="dueAlerts.overdue.length > 0" class="nav-badge" style="background: #ef4444;">{{ dueAlerts.overdue.length }}</span>
       <span class="nav-label">Bills</span>
     </button>
+    <!-- Phase 10: Reports Tab -->
+    <button :class="['nav-btn', { active: activeTab === 'reports' }]"
+            @click="activeTab = 'reports'"
+            title="Reports">
+      <span class="nav-icon">📄</span>
+      <span class="nav-label">Reports</span>
+    </button>
     <button :class="['nav-btn', { active: activeTab === 'analytics' }]"
             @click="activeTab = 'analytics'"
             title="Intelligence">
@@ -1270,6 +1277,296 @@
                 <button @click="deleteBill(bill)" class="btn-danger btn-xs">Delete</button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 10: Reports Tab -->
+  <div v-show="activeTab === 'reports'" class="tab-content">
+    <div class="reports-view">
+      <div class="reports-header">
+        <h2 class="section-title">📄 Reports & Export</h2>
+        <p class="text-muted">Generate reports, compare periods, and export your financial data</p>
+      </div>
+
+      <!-- Report Type Selection -->
+      <div class="report-tabs">
+        <button :class="['report-tab', { active: activeReportTab === 'summary' }]" @click="activeReportTab = 'summary'">Summary</button>
+        <button :class="['report-tab', { active: activeReportTab === 'tax' }]" @click="activeReportTab = 'tax'">Tax Report</button>
+        <button :class="['report-tab', { active: activeReportTab === 'variance' }]" @click="activeReportTab = 'variance'">Variance</button>
+        <button :class="['report-tab', { active: activeReportTab === 'comparison' }]" @click="activeReportTab = 'comparison'">Comparison</button>
+        <button :class="['report-tab', { active: activeReportTab === 'export' }]" @click="activeReportTab = 'export'">Export</button>
+      </div>
+
+      <!-- Date Range Controls -->
+      <div class="report-date-range">
+        <div class="form-group">
+          <label>From Date</label>
+          <input v-model="reportDateRange.from" type="date" class="text-input">
+        </div>
+        <div class="form-group">
+          <label>To Date</label>
+          <input v-model="reportDateRange.to" type="date" class="text-input">
+        </div>
+        <button @click="setReportDateRange('thisMonth')" class="btn-secondary btn-sm">This Month</button>
+        <button @click="setReportDateRange('lastMonth')" class="btn-secondary btn-sm">Last Month</button>
+        <button @click="setReportDateRange('thisYear')" class="btn-secondary btn-sm">This Year</button>
+      </div>
+
+      <!-- Summary Report -->
+      <div v-if="activeReportTab === 'summary'" class="report-section">
+        <h3 class="report-section-title">Monthly Summary Report</h3>
+        <div class="report-content" id="reportSummary">
+          <div class="summary-metrics">
+            <div class="metric-box">
+              <div class="metric-label">Period</div>
+              <div class="metric-value">{{ formatDate(reportDateRange.from) }} - {{ formatDate(reportDateRange.to) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Total Income</div>
+              <div class="metric-value positive">{{ formatCurrency(reportMetrics.totalIncome) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Total Expenses</div>
+              <div class="metric-value negative">{{ formatCurrency(reportMetrics.totalExpenses) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Net Cash Flow</div>
+              <div class="metric-value" :class="reportMetrics.netCashFlow >= 0 ? 'positive' : 'negative'">{{ formatCurrency(reportMetrics.netCashFlow) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Savings Rate</div>
+              <div class="metric-value">{{ formatPercent(reportMetrics.savingsRate, 1) }}</div>
+            </div>
+          </div>
+
+          <h4 class="report-subtitle">Category Breakdown</h4>
+          <div class="category-report-table">
+            <div class="table-header">
+              <div class="table-col-name">Category</div>
+              <div class="table-col-amount">Amount</div>
+              <div class="table-col-percent">% of Total</div>
+            </div>
+            <div v-for="cat in reportMetrics.categoryBreakdown" :key="cat.id" class="table-row">
+              <div class="table-col-name">{{ cat.emoji }} {{ cat.name }}</div>
+              <div class="table-col-amount">{{ formatCurrency(cat.total) }}</div>
+              <div class="table-col-percent">{{ formatPercent(cat.percentage, 1) }}</div>
+            </div>
+          </div>
+
+          <div class="report-actions">
+            <button @click="printReport('summary')" class="btn-secondary">🖨 Print</button>
+            <button @click="downloadReportPDF('summary')" class="btn-secondary">⬇ Download PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tax Report -->
+      <div v-if="activeReportTab === 'tax'" class="report-section">
+        <h3 class="report-section-title">Tax Report</h3>
+        
+        <!-- Tax Tag Section -->
+        <div class="tax-tagging-section">
+          <h4 class="report-subtitle">Mark Transactions for Taxes</h4>
+          <p class="text-muted" style="margin-bottom: 1rem;">Mark expenses that are tax-deductible or income transactions for tax reporting</p>
+          
+          <div class="tax-filter">
+            <label><input v-model="taxFilters.showOnlyTagged" type="checkbox"> Show only tax-tagged</label>
+          </div>
+
+          <div class="transactions-for-tax">
+            <div v-for="txn in filteredTransactionsForTax" :key="txn.id" class="tax-transaction">
+              <div class="tax-txn-info">
+                <div class="tax-txn-desc">{{ txn.description }}</div>
+                <div class="tax-txn-date">{{ formatDate(txn.date) }}</div>
+              </div>
+              <div class="tax-txn-amount" :class="txn.type === 'expense' ? 'negative' : 'positive'">
+                {{ txn.type === 'expense' ? '-' : '+' }}{{ formatCurrency(Math.abs(txn.amount)) }}
+              </div>
+              <label class="tax-checkbox">
+                <input v-model="txn.isTaxRelevant" type="checkbox">
+                <span>Tax</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="report-content" id="reportTax">
+          <div class="summary-metrics">
+            <div class="metric-box">
+              <div class="metric-label">Deductible Expenses</div>
+              <div class="metric-value negative">{{ formatCurrency(reportMetrics.taxDeductibleExpenses) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Taxable Income</div>
+              <div class="metric-value positive">{{ formatCurrency(reportMetrics.taxableIncome) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Tax-Tagged Transactions</div>
+              <div class="metric-value">{{ reportMetrics.taxTaggedCount }}</div>
+            </div>
+          </div>
+
+          <h4 class="report-subtitle">Tax Category Summary</h4>
+          <div class="tax-category-table">
+            <div class="table-header">
+              <div class="table-col-name">Category</div>
+              <div class="table-col-amount">Deductible Amount</div>
+              <div class="table-col-count">Count</div>
+            </div>
+            <div v-for="cat in reportMetrics.taxCategoryBreakdown" :key="cat.id" class="table-row">
+              <div class="table-col-name">{{ cat.emoji }} {{ cat.name }}</div>
+              <div class="table-col-amount">{{ formatCurrency(cat.deductible) }}</div>
+              <div class="table-col-count">{{ cat.count }}</div>
+            </div>
+          </div>
+
+          <div class="report-actions">
+            <button @click="printReport('tax')" class="btn-secondary">🖨 Print</button>
+            <button @click="downloadReportPDF('tax')" class="btn-secondary">⬇ Download PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Budget Variance Report -->
+      <div v-if="activeReportTab === 'variance'" class="report-section">
+        <h3 class="report-section-title">Budget Variance Report</h3>
+        
+        <div class="report-content" id="reportVariance">
+          <div class="variance-table">
+            <div class="table-header">
+              <div class="table-col-name">Category</div>
+              <div class="table-col-amount">Budgeted</div>
+              <div class="table-col-amount">Actual</div>
+              <div class="table-col-amount">Variance</div>
+              <div class="table-col-percent">Status</div>
+            </div>
+            <div v-for="item in reportMetrics.varianceBreakdown" :key="item.id" class="table-row" :class="{ 'over-budget': item.variance > 0 }">
+              <div class="table-col-name">{{ item.emoji }} {{ item.name }}</div>
+              <div class="table-col-amount">{{ formatCurrency(item.budgeted) }}</div>
+              <div class="table-col-amount">{{ formatCurrency(item.actual) }}</div>
+              <div class="table-col-amount" :class="item.variance > 0 ? 'negative' : 'positive'">{{ formatSignedCurrency(item.variance) }}</div>
+              <div class="table-col-percent">{{ formatPercent(item.variancePercent, 0) }}</div>
+            </div>
+          </div>
+
+          <h4 class="report-subtitle">Summary</h4>
+          <div class="summary-metrics">
+            <div class="metric-box">
+              <div class="metric-label">Total Budgeted</div>
+              <div class="metric-value">{{ formatCurrency(reportMetrics.totalBudgeted) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Total Spent</div>
+              <div class="metric-value negative">{{ formatCurrency(reportMetrics.totalActualExpenses) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Remaining</div>
+              <div class="metric-value" :class="reportMetrics.totalRemaining >= 0 ? 'positive' : 'negative'">{{ formatCurrency(reportMetrics.totalRemaining) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Budget Efficiency</div>
+              <div class="metric-value">{{ formatPercent(reportMetrics.budgetEfficiency, 1) }}</div>
+            </div>
+          </div>
+
+          <div class="report-actions">
+            <button @click="printReport('variance')" class="btn-secondary">🖨 Print</button>
+            <button @click="downloadReportPDF('variance')" class="btn-secondary">⬇ Download PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparison Report -->
+      <div v-if="activeReportTab === 'comparison'" class="report-section">
+        <h3 class="report-section-title">Period Comparison Report</h3>
+        
+        <div class="comparison-type-selector">
+          <button :class="['comparison-btn', { active: comparisonType === 'monthly' }]" @click="comparisonType = 'monthly'">Month-to-Month</button>
+          <button :class="['comparison-btn', { active: comparisonType === 'yearly' }]" @click="comparisonType = 'yearly'">Year-over-Year</button>
+        </div>
+
+        <div class="report-content" id="reportComparison">
+          <div class="comparison-table">
+            <div class="table-header">
+              <div class="table-col-name">Category</div>
+              <div class="table-col-amount">{{ comparisonType === 'monthly' ? 'This Month' : 'This Year' }}</div>
+              <div class="table-col-amount">{{ comparisonType === 'monthly' ? 'Last Month' : 'Last Year' }}</div>
+              <div class="table-col-amount">Change</div>
+              <div class="table-col-percent">% Change</div>
+            </div>
+            <div v-for="item in reportMetrics.comparisonBreakdown" :key="item.id" class="table-row">
+              <div class="table-col-name">{{ item.emoji }} {{ item.name }}</div>
+              <div class="table-col-amount">{{ formatCurrency(item.current) }}</div>
+              <div class="table-col-amount">{{ formatCurrency(item.previous) }}</div>
+              <div class="table-col-amount" :class="item.change > 0 ? 'negative' : 'positive'">{{ formatSignedCurrency(item.change) }}</div>
+              <div class="table-col-percent" :class="item.changePercent > 0 ? 'negative' : 'positive'">{{ formatSignedPercent(item.changePercent, 1) }}</div>
+            </div>
+          </div>
+
+          <h4 class="report-subtitle">Overall Comparison</h4>
+          <div class="summary-metrics">
+            <div class="metric-box">
+              <div class="metric-label">{{ comparisonType === 'monthly' ? 'This Month' : 'This Year' }} Income</div>
+              <div class="metric-value positive">{{ formatCurrency(reportMetrics.comparisonCurrentIncome) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">{{ comparisonType === 'monthly' ? 'Last Month' : 'Last Year' }} Income</div>
+              <div class="metric-value positive">{{ formatCurrency(reportMetrics.comparisonPreviousIncome) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">{{ comparisonType === 'monthly' ? 'This Month' : 'This Year' }} Expenses</div>
+              <div class="metric-value negative">{{ formatCurrency(reportMetrics.comparisonCurrentExpenses) }}</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">{{ comparisonType === 'monthly' ? 'Last Month' : 'Last Year' }} Expenses</div>
+              <div class="metric-value negative">{{ formatCurrency(reportMetrics.comparisonPreviousExpenses) }}</div>
+            </div>
+          </div>
+
+          <div class="report-actions">
+            <button @click="printReport('comparison')" class="btn-secondary">🖨 Print</button>
+            <button @click="downloadReportPDF('comparison')" class="btn-secondary">⬇ Download PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Section -->
+      <div v-if="activeReportTab === 'export'" class="report-section">
+        <h3 class="report-section-title">Export Your Data</h3>
+        
+        <div class="export-options">
+          <div class="export-card">
+            <h4>📋 Executive Summary</h4>
+            <p class="text-muted">High-level financial overview for quick reference</p>
+            <button @click="downloadExecutiveSummary" class="btn-primary">Export Summary</button>
+          </div>
+
+          <div class="export-card">
+            <h4>📊 Full Data Export</h4>
+            <p class="text-muted">Complete JSON export with all transactions and historical data</p>
+            <button @click="downloadFullDataJSON" class="btn-primary">Export JSON</button>
+          </div>
+
+          <div class="export-card">
+            <h4>📁 Category Breakdown</h4>
+            <p class="text-muted">Detailed PDF breakdown of spending by category</p>
+            <button @click="downloadReportPDF('categorybreakdown')" class="btn-primary">Export PDF</button>
+          </div>
+
+          <div class="export-card">
+            <h4>📈 CSV Export</h4>
+            <p class="text-muted">Export transactions as CSV for spreadsheet analysis</p>
+            <button @click="exportTransactionsCSV" class="btn-primary">Export CSV</button>
+          </div>
+        </div>
+
+        <div class="export-preview">
+          <h4 class="report-subtitle">Export Preview</h4>
+          <div class="preview-box">
+            <pre>{{ exportPreviewContent }}</pre>
           </div>
         </div>
       </div>
