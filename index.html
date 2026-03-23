@@ -12,12 +12,12 @@
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap\" rel=\"stylesheet\">
-  <link rel=\"stylesheet\" href=\"css/style.css\">
-  <link rel=\"stylesheet\" href=\"css/mobile.css\">
-  <link rel=\"stylesheet\" href=\"css/phase7-mobile.css\">
-  <link rel=\"stylesheet\" href=\"css/phase12-category-customizer.css\">
-</head>\n<body>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <link rel="stylesheet" href="css/phase7-mobile.css">
+  <link rel="stylesheet" href="css/phase12-category-customizer.css">
+</head>
 <body>
 
 <nav id="nav">
@@ -1723,7 +1723,295 @@
   </div>
 
   <!-- Context menu for transactions -->
-  <div v-if=\"contextMenu.visible\" class=\"context-menu\" :style=\"{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }\">\n    <button @click=\"editTransaction(contextMenu.txn)\">Edit</button>\n    <button @click=\"deleteTransaction(contextMenu.txn.id)\">Delete</button>\n    <button @click=\"duplicateTransaction(contextMenu.txn)\">Duplicate</button>\n  </div>\n\n  <!-- Phase 12: Category Customization Modal -->\n  <div v-if=\"showCategoryCustomizer\" class=\"modal-overlay\" @click.self=\"showCategoryCustomizer = false\">\n    <div class=\"modal-dialog modal-large\">\n      <div class=\"modal-header\">\n        <h2>📁 Category Customization</h2>\n        <button class=\"btn-close\" @click=\"showCategoryCustomizer = false\">×</button>\n      </div>\n      <div class=\"category-customizer-tabs\">\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'manage' }]\" @click=\"categoryCustomizerTab = 'manage'\">Manage</button>\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'presets' }]\" @click=\"categoryCustomizerTab = 'presets'\">Presets</button>\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'icons' }]\" @click=\"categoryCustomizerTab = 'icons'\">Icons</button>\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'settings' }]\" @click=\"categoryCustomizerTab = 'settings'\">Settings</button>\n      </div>\n\n      <!-- Manage Categories Tab -->\n      <div v-if=\"categoryCustomizerTab === 'manage'\" class=\"category-customizer-content\">\n        <div class=\"category-list-customizer\">\n          <div class=\"category-customizer-toolbar\">\n            <input v-model=\"categorySearchQuery\" type=\"text\" placeholder=\"Search categories...\" class=\"text-input\" style=\"flex: 1;\">\n            <button @click=\"showAddCategoryForm = !showAddCategoryForm\" class=\"btn-primary btn-sm\">+ Add Category</button>\n          </div>\n\n          <!-- Add Category Form -->\n          <div v-if=\"showAddCategoryForm\" class=\"add-category-form\">\n            <div class=\"form-group\">\n              <label>Category Name</label>\n              <input v-model=\"newCategoryForm.name\" type=\"text\" placeholder=\"e.g., Coffee\" class=\"text-input\">\n            </div>\n            <div class=\"form-group\">\n              <label>Icon/Emoji</label>\n              <div class=\"emoji-input-row\">\n                <input v-model=\"newCategoryForm.emoji\" type=\"text\" placeholder=\"Select or paste emoji\" class=\"text-input emoji-input\">\n                <button @click=\"showEmojiPicker = !showEmojiPicker\" class=\"btn-secondary btn-sm\">Pick</button>\n              </div>\n            </div>\n            <div class=\"form-group\">\n              <label>Color</label>\n              <div class=\"color-picker-row\">\n                <div class=\"color-display\" :style=\"{ backgroundColor: newCategoryForm.color }\" @click=\"showColorPicker = !showColorPicker\"></div>\n                <input v-model=\"newCategoryForm.color\" type=\"text\" placeholder=\"#4ade80\" class=\"text-input color-input\">\n                <div v-if=\"showColorPicker\" class=\"color-picker-grid\">\n                  <div v-for=\"color in ColorCustomizer.colorPresets\" :key=\"color\" \n                       class=\"color-preset\" :style=\"{ backgroundColor: color }\" \n                       @click=\"newCategoryForm.color = color; showColorPicker = false;\"></div>\n                </div>\n              </div>\n            </div>\n            <div class=\"form-group\">\n              <label>Parent Category (for sub-categories)</label>\n              <select v-model=\"newCategoryForm.parentId\" class=\"select-input\">\n                <option value=\"\">None (Top-level)</option>\n                <option v-for=\"cat in categories.filter(c => !c.parentId)\" :key=\"cat.id\" :value=\"cat.id\">\n                  {{ cat.emoji }} {{ cat.name }}\n                </option>\n              </select>\n            </div>\n            <div class=\"form-group\">\n              <label>Aliases (comma-separated)</label>\n              <input v-model=\"newCategoryForm.aliasesInput\" type=\"text\" placeholder=\"e.g., Espresso, Latte, Cappuccino\" class=\"text-input\">\n            </div>\n            <div class=\"form-footer\">\n              <button @click=\"showAddCategoryForm = false\" class=\"btn-secondary btn-sm\">Cancel</button>\n              <button @click=\"addNewCategory()\" class=\"btn-primary btn-sm\">Create Category</button>\n            </div>\n          </div>\n\n          <!-- Categories List (Draggable) -->\n          <div class=\"categories-drag-list\" @dragover.prevent @drop.prevent=\"handleCategoryDrop\">\n            <div v-for=\"(cat, idx) in filteredCategoriesForCustomizer\" :key=\"cat.id\" \n                 class=\"category-item-customizer\" draggable=\"true\"\n                 @dragstart=\"handleCategoryDragStart($event, idx)\"\n                 @dragend=\"handleCategoryDragEnd\"\n                 :class=\"{ hidden: cat.isHidden }\">\n              <div class=\"drag-handle\">⋮⋮</div>\n              <div class=\"category-display\" :style=\"{ backgroundColor: cat.color }\">{{ cat.emoji }}</div>\n              <div class=\"category-info\">\n                <div class=\"category-name\">{{ cat.name }}</div>\n                <div class=\"category-meta\">{{ getCategoryStats(cat, transactions).totalTransactions }} uses</div>\n                <div v-if=\"cat.aliases.length > 0\" class=\"category-aliases\">Aliases: {{ cat.aliases.join(', ') }}</div>\n              </div>\n              <div class=\"category-actions\">\n                <button @click=\"editCategoryModal(cat)\" class=\"btn-icon-small\" title=\"Edit\">✎</button>\n                <button @click=\"showDeleteCategoryConfirm(cat)\" class=\"btn-icon-small danger\" title=\"Delete\">✕</button>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Presets Tab -->\n      <div v-if=\"categoryCustomizerTab === 'presets'\" class=\"category-customizer-content\">\n        <div class=\"presets-grid\">\n          <div class=\"preset-card\">\n            <h4>Minimal Setup</h4>\n            <p class=\"text-muted\">6 essential categories for basic budgeting</p>\n            <div class=\"preset-preview\">\n              <div v-for=\"cat in CategoryCustomizer.categoryPresets.minimal\" :key=\"cat.name\" class=\"preset-cat\">\n                <span :style=\"{ color: cat.color }\">{{ cat.emoji }}</span>\n                <span>{{ cat.name }}</span>\n              </div>\n            </div>\n            <button @click=\"applyPreset('minimal')\" class=\"btn-primary btn-full\">Apply Minimal</button>\n          </div>\n\n          <div class=\"preset-card\">\n            <h4>Detailed Setup</h4>\n            <p class=\"text-muted\">13 categories for comprehensive tracking</p>\n            <div class=\"preset-preview\">\n              <div v-for=\"cat in CategoryCustomizer.categoryPresets.detailed\" :key=\"cat.name\" class=\"preset-cat\">\n                <span :style=\"{ color: cat.color }\">{{ cat.emoji }}</span>\n                <span>{{ cat.name }}</span>\n              </div>\n            </div>\n            <button @click=\"applyPreset('detailed')\" class=\"btn-primary btn-full\">Apply Detailed</button>\n          </div>\n\n          <div class=\"preset-card\">\n            <h4>Advanced Setup</h4>\n            <p class=\"text-muted\">20 categories for detailed expense tracking</p>\n            <div class=\"preset-preview\">\n              <div v-for=\"cat in CategoryCustomizer.categoryPresets.advanced\" :key=\"cat.name\" class=\"preset-cat\">\n                <span :style=\"{ color: cat.color }\">{{ cat.emoji }}</span>\n                <span>{{ cat.name }}</span>\n              </div>\n            </div>\n            <button @click=\"applyPreset('advanced')\" class=\"btn-primary btn-full\">Apply Advanced</button>\n          </div>\n        </div>\n      </div>\n\n      <!-- Icons Tab -->\n      <div v-if=\"categoryCustomizerTab === 'icons'\" class=\"category-customizer-content\">\n        <div class=\"icon-library-grid\">\n          <div v-for=\"icon in CategoryCustomizer.iconLibrary\" :key=\"icon.emoji\" \n               class=\"icon-item\" @click=\"selectIconForNewCategory(icon)\">\n            <div class=\"icon-emoji\">{{ icon.emoji }}</div>\n            <div class=\"icon-name\">{{ icon.name }}</div>\n            <div class=\"icon-category\">{{ icon.category }}</div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Settings Tab -->\n      <div v-if=\"categoryCustomizerTab === 'settings'\" class=\"category-customizer-content\">\n        <div class=\"category-settings\">\n          <div class=\"setting-item\">\n            <div class=\"setting-label\">\n              <h4>Hide Unused Categories</h4>\n              <p class=\"text-muted\">Automatically hide categories with no transactions</p>\n            </div>\n            <label class=\"toggle-switch\">\n              <input v-model=\"categoryCustomizerSettings.hideUnused\" type=\"checkbox\">\n              <span class=\"toggle-slider\"></span>\n            </label>\n          </div>\n\n          <div class=\"setting-item\">\n            <div class=\"setting-label\">\n              <h4>Show Sub-categories</h4>\n              <p class=\"text-muted\">Display sub-categories in category lists</p>\n            </div>\n            <label class=\"toggle-switch\">\n              <input v-model=\"categoryCustomizerSettings.showSubcategories\" type=\"checkbox\">\n              <span class=\"toggle-slider\"></span>\n            </label>\n          </div>\n\n          <div class=\"setting-item\">\n            <div class=\"setting-label\">\n              <h4>Category Statistics</h4>\n              <p class=\"text-muted\">Show usage count and last used date</p>\n            </div>\n            <label class=\"toggle-switch\">\n              <input v-model=\"categoryCustomizerSettings.showStats\" type=\"checkbox\">\n              <span class=\"toggle-slider\"></span>\n            </label>\n          </div>\n\n          <div class=\"setting-divider\"></div>\n\n          <div class=\"setting-item action-item\">\n            <h4>Merge Categories</h4>\n            <p class=\"text-muted\">Combine two categories into one</p>\n            <button @click=\"showMergeCategoriesModal = true\" class=\"btn-secondary btn-full\">Open Merge Tool</button>\n          </div>\n\n          <div class=\"setting-item action-item\">\n            <h4>Export Categories</h4>\n            <p class=\"text-muted\">Save your category setup as JSON</p>\n            <button @click=\"exportCategoriesToJSON()\" class=\"btn-secondary btn-full\">Export JSON</button>\n          </div>\n\n          <div class=\"setting-item action-item\">\n            <h4>Import Categories</h4>\n            <p class=\"text-muted\">Load categories from JSON file</p>\n            <input type=\"file\" accept=\".json\" @change=\"importCategoriesFromFile\" style=\"display: none;\" ref=\"categoryImportInput\">\n            <button @click=\"$refs.categoryImportInput.click()\" class=\"btn-secondary btn-full\">Import JSON</button>\n          </div>\n        </div>\n      </div>\n    </div>\n  </div>\n\n  <!-- Phase 12: Edit Category Modal -->\n  <div v-if=\"showEditCategoryModal\" class=\"modal-overlay\" @click.self=\"showEditCategoryModal = false\">\n    <div class=\"modal-dialog\">\n      <div class=\"modal-header\">\n        <h2>Edit Category</h2>\n        <button class=\"btn-close\" @click=\"showEditCategoryModal = false\">×</button>\n      </div>\n      <div class=\"form-section\">\n        <div class=\"form-group\">\n          <label>Category Name</label>\n          <input v-model=\"editingCategory.name\" type=\"text\" class=\"text-input\">\n        </div>\n        <div class=\"form-group\">\n          <label>Icon/Emoji</label>\n          <input v-model=\"editingCategory.emoji\" type=\"text\" class=\"text-input\">\n        </div>\n        <div class=\"form-group\">\n          <label>Color</label>\n          <div class=\"color-picker-row\">\n            <div class=\"color-display\" :style=\"{ backgroundColor: editingCategory.color }\" @click=\"showEditColorPicker = !showEditColorPicker\"></div>\n            <input v-model=\"editingCategory.color\" type=\"text\" class=\"text-input color-input\">\n            <div v-if=\"showEditColorPicker\" class=\"color-picker-grid\">\n              <div v-for=\"color in CategoryCustomizer.colorPresets\" :key=\"color\" \n                   class=\"color-preset\" :style=\"{ backgroundColor: color }\" \n                   @click=\"editingCategory.color = color; showEditColorPicker = false;\"></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"form-group\">\n          <label>Aliases (comma-separated)</label>\n          <input v-model=\"editingCategory.aliasesEdit\" type=\"text\" class=\"text-input\" placeholder=\"Espresso, Latte, Cappuccino\">\n        </div>\n        <div class=\"form-footer\">\n          <button @click=\"showEditCategoryModal = false\" class=\"btn-secondary\">Cancel</button>\n          <button @click=\"saveEditCategory()\" class=\"btn-primary\">Save Changes</button>\n        </div>\n      </div>\n    </div>\n  </div>\n\n  <!-- Phase 12: Merge Categories Modal -->\n  <div v-if=\"showMergeCategoriesModal\" class=\"modal-overlay\" @click.self=\"showMergeCategoriesModal = false\">\n    <div class=\"modal-dialog\">\n      <div class=\"modal-header\">\n        <h2>Merge Categories</h2>\n        <button class=\"btn-close\" @click=\"showMergeCategoriesModal = false\">×</button>\n      </div>\n      <div class=\"form-section\">\n        <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">All transactions from the source category will be moved to the target category.</p>\n        <div class=\"form-group\">\n          <label>Source Category (from)</label>\n          <select v-model=\"mergeState.sourceId\" class=\"select-input\">\n            <option value=\"\">Select source...</option>\n            <option v-for=\"cat in categories\" :key=\"cat.id\" :value=\"cat.id\">{{ cat.emoji }} {{ cat.name }}</option>\n          </select>\n        </div>\n        <div class=\"form-group\">\n          <label>Target Category (to)</label>\n          <select v-model=\"mergeState.targetId\" class=\"select-input\">\n            <option value=\"\">Select target...</option>\n            <option v-for=\"cat in categories\" :key=\"cat.id\" :value=\"cat.id\" :disabled=\"cat.id === mergeState.sourceId\">{{ cat.emoji }} {{ cat.name }}</option>\n          </select>\n        </div>\n        <div v-if=\"mergeState.sourceId && mergeState.targetId\" class=\"merge-preview\">\n          <p class=\"text-muted\">Merge <strong>{{ categories.find(c => c.id === mergeState.sourceId)?.emoji }} {{ categories.find(c => c.id === mergeState.sourceId)?.name }}</strong> into <strong>{{ categories.find(c => c.id === mergeState.targetId)?.emoji }} {{ categories.find(c => c.id === mergeState.targetId)?.name }}</strong></p>\n          <div class=\"merge-checkbox\">\n            <label>\n              <input v-model=\"mergeState.deleteSource\" type=\"checkbox\">\n              Delete source category after merge\n            </label>\n          </div>\n        </div>\n        <div class=\"form-footer\">\n          <button @click=\"showMergeCategoriesModal = false\" class=\"btn-secondary\">Cancel</button>\n          <button @click=\"mergeCategories()\" :disabled=\"!mergeState.sourceId || !mergeState.targetId\" class=\"btn-primary\">Merge Categories</button>\n        </div>\n      </div>\n    </div>\n  </div>\n</div>
+  <div v-if="contextMenu.visible" class="context-menu" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }">
+    <button @click="editTransaction(contextMenu.txn)">Edit</button>
+    <button @click="deleteTransaction(contextMenu.txn.id)">Delete</button>
+    <button @click="duplicateTransaction(contextMenu.txn)">Duplicate</button>
+  </div>
+
+  <!-- Phase 12: Category Customization Modal -->
+  <div v-if="showCategoryCustomizer" class="modal-overlay" @click.self="showCategoryCustomizer = false">
+    <div class="modal-dialog modal-large">
+      <div class="modal-header">
+        <h2>📁 Category Customization</h2>
+        <button class="btn-close" @click="showCategoryCustomizer = false">×</button>
+      </div>
+      <div class="category-customizer-tabs">
+        <button :class="['tab-btn', { active: categoryCustomizerTab === 'manage' }]" @click="categoryCustomizerTab = 'manage'">Manage</button>
+        <button :class="['tab-btn', { active: categoryCustomizerTab === 'presets' }]" @click="categoryCustomizerTab = 'presets'">Presets</button>
+        <button :class="['tab-btn', { active: categoryCustomizerTab === 'icons' }]" @click="categoryCustomizerTab = 'icons'">Icons</button>
+        <button :class="['tab-btn', { active: categoryCustomizerTab === 'settings' }]" @click="categoryCustomizerTab = 'settings'">Settings</button>
+      </div>
+
+      <!-- Manage Categories Tab -->
+      <div v-if="categoryCustomizerTab === 'manage'" class="category-customizer-content">
+        <div class="category-list-customizer">
+          <div class="category-customizer-toolbar">
+            <input v-model="categorySearchQuery" type="text" placeholder="Search categories..." class="text-input" style="flex: 1;">
+            <button @click="showAddCategoryForm = !showAddCategoryForm" class="btn-primary btn-sm">+ Add Category</button>
+          </div>
+
+          <!-- Add Category Form -->
+          <div v-if="showAddCategoryForm" class="add-category-form">
+            <div class="form-group">
+              <label>Category Name</label>
+              <input v-model="newCategoryForm.name" type="text" placeholder="e.g., Coffee" class="text-input">
+            </div>
+            <div class="form-group">
+              <label>Icon/Emoji</label>
+              <div class="emoji-input-row">
+                <input v-model="newCategoryForm.emoji" type="text" placeholder="Select or paste emoji" class="text-input emoji-input">
+                <button @click="showEmojiPicker = !showEmojiPicker" class="btn-secondary btn-sm">Pick</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Color</label>
+              <div class="color-picker-row">
+                <div class="color-display" :style="{ backgroundColor: newCategoryForm.color }" @click="showColorPicker = !showColorPicker"></div>
+                <input v-model="newCategoryForm.color" type="text" placeholder="#4ade80" class="text-input color-input">
+                <div v-if="showColorPicker" class="color-picker-grid">
+                  <div v-for="color in ColorCustomizer.colorPresets" :key="color" 
+                       class="color-preset" :style="{ backgroundColor: color }" 
+                       @click="newCategoryForm.color = color; showColorPicker = false;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Parent Category (for sub-categories)</label>
+              <select v-model="newCategoryForm.parentId" class="select-input">
+                <option value="">None (Top-level)</option>
+                <option v-for="cat in categories.filter(c => !c.parentId)" :key="cat.id" :value="cat.id">
+                  {{ cat.emoji }} {{ cat.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Aliases (comma-separated)</label>
+              <input v-model="newCategoryForm.aliasesInput" type="text" placeholder="e.g., Espresso, Latte, Cappuccino" class="text-input">
+            </div>
+            <div class="form-footer">
+              <button @click="showAddCategoryForm = false" class="btn-secondary btn-sm">Cancel</button>
+              <button @click="addNewCategory()" class="btn-primary btn-sm">Create Category</button>
+            </div>
+          </div>
+
+          <!-- Categories List (Draggable) -->
+          <div class="categories-drag-list" @dragover.prevent @drop.prevent="handleCategoryDrop">
+            <div v-for="(cat, idx) in filteredCategoriesForCustomizer" :key="cat.id" 
+                 class="category-item-customizer" draggable="true"
+                 @dragstart="handleCategoryDragStart($event, idx)"
+                 @dragend="handleCategoryDragEnd"
+                 :class="{ hidden: cat.isHidden }">
+              <div class="drag-handle">⋮⋮</div>
+              <div class="category-display" :style="{ backgroundColor: cat.color }">{{ cat.emoji }}</div>
+              <div class="category-info">
+                <div class="category-name">{{ cat.name }}</div>
+                <div class="category-meta">{{ getCategoryStats(cat, transactions).totalTransactions }} uses</div>
+                <div v-if="cat.aliases.length > 0" class="category-aliases">Aliases: {{ cat.aliases.join(', ') }}</div>
+              </div>
+              <div class="category-actions">
+                <button @click="editCategoryModal(cat)" class="btn-icon-small" title="Edit">✎</button>
+                <button @click="showDeleteCategoryConfirm(cat)" class="btn-icon-small danger" title="Delete">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Presets Tab -->
+      <div v-if="categoryCustomizerTab === 'presets'" class="category-customizer-content">
+        <div class="presets-grid">
+          <div class="preset-card">
+            <h4>Minimal Setup</h4>
+            <p class="text-muted">6 essential categories for basic budgeting</p>
+            <div class="preset-preview">
+              <div v-for="cat in CategoryCustomizer.categoryPresets.minimal" :key="cat.name" class="preset-cat">
+                <span :style="{ color: cat.color }">{{ cat.emoji }}</span>
+                <span>{{ cat.name }}</span>
+              </div>
+            </div>
+            <button @click="applyPreset('minimal')" class="btn-primary btn-full">Apply Minimal</button>
+          </div>
+
+          <div class="preset-card">
+            <h4>Detailed Setup</h4>
+            <p class="text-muted">13 categories for comprehensive tracking</p>
+            <div class="preset-preview">
+              <div v-for="cat in CategoryCustomizer.categoryPresets.detailed" :key="cat.name" class="preset-cat">
+                <span :style="{ color: cat.color }">{{ cat.emoji }}</span>
+                <span>{{ cat.name }}</span>
+              </div>
+            </div>
+            <button @click="applyPreset('detailed')" class="btn-primary btn-full">Apply Detailed</button>
+          </div>
+
+          <div class="preset-card">
+            <h4>Advanced Setup</h4>
+            <p class="text-muted">20 categories for detailed expense tracking</p>
+            <div class="preset-preview">
+              <div v-for="cat in CategoryCustomizer.categoryPresets.advanced" :key="cat.name" class="preset-cat">
+                <span :style="{ color: cat.color }">{{ cat.emoji }}</span>
+                <span>{{ cat.name }}</span>
+              </div>
+            </div>
+            <button @click="applyPreset('advanced')" class="btn-primary btn-full">Apply Advanced</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Icons Tab -->
+      <div v-if="categoryCustomizerTab === 'icons'" class="category-customizer-content">
+        <div class="icon-library-grid">
+          <div v-for="icon in CategoryCustomizer.iconLibrary" :key="icon.emoji" 
+               class="icon-item" @click="selectIconForNewCategory(icon)">
+            <div class="icon-emoji">{{ icon.emoji }}</div>
+            <div class="icon-name">{{ icon.name }}</div>
+            <div class="icon-category">{{ icon.category }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div v-if="categoryCustomizerTab === 'settings'" class="category-customizer-content">
+        <div class="category-settings">
+          <div class="setting-item">
+            <div class="setting-label">
+              <h4>Hide Unused Categories</h4>
+              <p class="text-muted">Automatically hide categories with no transactions</p>
+            </div>
+            <label class="toggle-switch">
+              <input v-model="categoryCustomizerSettings.hideUnused" type="checkbox">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <h4>Show Sub-categories</h4>
+              <p class="text-muted">Display sub-categories in category lists</p>
+            </div>
+            <label class="toggle-switch">
+              <input v-model="categoryCustomizerSettings.showSubcategories" type="checkbox">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <h4>Category Statistics</h4>
+              <p class="text-muted">Show usage count and last used date</p>
+            </div>
+            <label class="toggle-switch">
+              <input v-model="categoryCustomizerSettings.showStats" type="checkbox">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-divider"></div>
+
+          <div class="setting-item action-item">
+            <h4>Merge Categories</h4>
+            <p class="text-muted">Combine two categories into one</p>
+            <button @click="showMergeCategoriesModal = true" class="btn-secondary btn-full">Open Merge Tool</button>
+          </div>
+
+          <div class="setting-item action-item">
+            <h4>Export Categories</h4>
+            <p class="text-muted">Save your category setup as JSON</p>
+            <button @click="exportCategoriesToJSON()" class="btn-secondary btn-full">Export JSON</button>
+          </div>
+
+          <div class="setting-item action-item">
+            <h4>Import Categories</h4>
+            <p class="text-muted">Load categories from JSON file</p>
+            <input type="file" accept=".json" @change="importCategoriesFromFile" style="display: none;" ref="categoryImportInput">
+            <button @click="$refs.categoryImportInput.click()" class="btn-secondary btn-full">Import JSON</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 12: Edit Category Modal -->
+  <div v-if="showEditCategoryModal" class="modal-overlay" @click.self="showEditCategoryModal = false">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Edit Category</h2>
+        <button class="btn-close" @click="showEditCategoryModal = false">×</button>
+      </div>
+      <div class="form-section">
+        <div class="form-group">
+          <label>Category Name</label>
+          <input v-model="editingCategory.name" type="text" class="text-input">
+        </div>
+        <div class="form-group">
+          <label>Icon/Emoji</label>
+          <input v-model="editingCategory.emoji" type="text" class="text-input">
+        </div>
+        <div class="form-group">
+          <label>Color</label>
+          <div class="color-picker-row">
+            <div class="color-display" :style="{ backgroundColor: editingCategory.color }" @click="showEditColorPicker = !showEditColorPicker"></div>
+            <input v-model="editingCategory.color" type="text" class="text-input color-input">
+            <div v-if="showEditColorPicker" class="color-picker-grid">
+              <div v-for="color in CategoryCustomizer.colorPresets" :key="color" 
+                   class="color-preset" :style="{ backgroundColor: color }" 
+                   @click="editingCategory.color = color; showEditColorPicker = false;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Aliases (comma-separated)</label>
+          <input v-model="editingCategory.aliasesEdit" type="text" class="text-input" placeholder="Espresso, Latte, Cappuccino">
+        </div>
+        <div class="form-footer">
+          <button @click="showEditCategoryModal = false" class="btn-secondary">Cancel</button>
+          <button @click="saveEditCategory()" class="btn-primary">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 12: Merge Categories Modal -->
+  <div v-if="showMergeCategoriesModal" class="modal-overlay" @click.self="showMergeCategoriesModal = false">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Merge Categories</h2>
+        <button class="btn-close" @click="showMergeCategoriesModal = false">×</button>
+      </div>
+      <div class="form-section">
+        <p class="text-muted" style="margin-bottom: 1rem;">All transactions from the source category will be moved to the target category.</p>
+        <div class="form-group">
+          <label>Source Category (from)</label>
+          <select v-model="mergeState.sourceId" class="select-input">
+            <option value="">Select source...</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.emoji }} {{ cat.name }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Target Category (to)</label>
+          <select v-model="mergeState.targetId" class="select-input">
+            <option value="">Select target...</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id" :disabled="cat.id === mergeState.sourceId">{{ cat.emoji }} {{ cat.name }}</option>
+          </select>
+        </div>
+        <div v-if="mergeState.sourceId && mergeState.targetId" class="merge-preview">
+          <p class="text-muted">Merge <strong>{{ categories.find(c => c.id === mergeState.sourceId)?.emoji }} {{ categories.find(c => c.id === mergeState.sourceId)?.name }}</strong> into <strong>{{ categories.find(c => c.id === mergeState.targetId)?.emoji }} {{ categories.find(c => c.id === mergeState.targetId)?.name }}</strong></p>
+          <div class="merge-checkbox">
+            <label>
+              <input v-model="mergeState.deleteSource" type="checkbox">
+              Delete source category after merge
+            </label>
+          </div>
+        </div>
+        <div class="form-footer">
+          <button @click="showMergeCategoriesModal = false" class="btn-secondary">Cancel</button>
+          <button @click="mergeCategories()" :disabled="!mergeState.sourceId || !mergeState.targetId" class="btn-primary">Merge Categories</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
     <button @click="editTransaction(contextMenu.txn)">Edit</button>
     <button @click="deleteTransaction(contextMenu.txn.id)">Delete</button>
     <button @click="duplicateTransaction(contextMenu.txn)">Duplicate</button>
@@ -1980,11 +2268,11 @@
   </div>
 </div>
 
-<script src=\"https://unpkg.com/vue@3/dist/vue.global.prod.js\"></script>
-<script src=\"js/storage.js\"></script>
-<script src=\"js/ai.js\"></script>
-<script src=\"js/receipt-parser.js\"></script>
-<script src=\"js/category-customizer.js\"></script>
-<script src=\"js/app.js\"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/receipt-parser.js"></script>
+<script src="js/category-customizer.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
