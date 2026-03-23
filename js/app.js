@@ -87,6 +87,16 @@ const app = createApp({
       daysInMonth: 0,
       daysElapsed: 0,
       averageDailySpend: 0,
+      averageDailyIncome: 0,
+      projectedMonthIncome: 0,
+      projectedMonthExpenses: 0,
+      projectedNetCashFlow: 0,
+    });
+
+    // Phase 8: Financial intelligence controls
+    const debtSimulator = reactive({
+      strategy: 'avalanche',
+      extraPayment: 200,
     });
 
     // ==================== Phase 7: Mobile-First Polish ====================
@@ -165,6 +175,7 @@ const app = createApp({
 
     async function loadAllData() {
       accounts.value = (await getStorage('accounts')) || initializeAccounts();
+      normalizeAccountMetadata();
       transactions.value = (await getStorage('transactions')) || [];
       categories.value = (await getStorage('categories')) || initializeCategories();
       budgets.value = (await getStorage('budgets')) || initializeBudgets();
@@ -187,9 +198,9 @@ const app = createApp({
 
     function initializeAccounts() {
       return [
-        { id: 'acc-checking', name: 'Checking', type: 'checking', balance: 2500 },
-        { id: 'acc-savings', name: 'Savings', type: 'savings', balance: 5000 },
-        { id: 'acc-credit', name: 'Credit Card', type: 'credit', balance: -150, limit: 5000 },
+        { id: 'acc-checking', name: 'Checking', type: 'checking', balance: 2500, apr: 0, minPayment: 0 },
+        { id: 'acc-savings', name: 'Savings', type: 'savings', balance: 5000, apr: 0, minPayment: 0 },
+        { id: 'acc-credit', name: 'Credit Card', type: 'credit', balance: -150, limit: 5000, apr: 18.9, minPayment: 35 },
       ];
     }
 
@@ -266,6 +277,115 @@ const app = createApp({
       const now = new Date();
       return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     });
+
+    function normalizeAccountMetadata() {
+      accounts.value = accounts.value.map(account => {
+        const isDebt = account.type === 'credit' || Number(account.balance || 0) < 0;
+        return {
+          ...account,
+          apr: typeof account.apr === 'number' ? account.apr : (isDebt ? 18.9 : 0),
+          minPayment: typeof account.minPayment === 'number' ? account.minPayment : (isDebt ? Math.max(25, Math.round(Math.abs(Number(account.balance || 0)) * 0.02)) : 0),
+        };
+      });
+    }
+
+    function getMonthDate(offset = 0) {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    }
+
+    function getMonthBounds(baseDate) {
+      const date = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+      return {
+        start: date,
+        end: new Date(date.getFullYear(), date.getMonth() + 1, 1),
+      };
+    }
+
+    function isTransactionInMonth(txn, baseDate) {
+      const { start, end } = getMonthBounds(baseDate);
+      const txnDate = new Date(txn.date);
+      return txnDate >= start && txnDate < end;
+    }
+
+    function getTransactionsForMonth(baseDate, type = null) {
+      return transactions.value.filter(txn => {
+        if (type && txn.type !== type) return false;
+        return isTransactionInMonth(txn, baseDate);
+      });
+    }
+
+    function getTransactionBalanceImpact(txn) {
+      return txn.type === 'income' ? Number(txn.amount || 0) : -Number(txn.amount || 0);
+    }
+
+    function getPercentChange(current, previous) {
+      if (!previous && !current) return 0;
+      if (!previous) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    }
+
+    function getFrequencyMonthlyFactor(frequency) {
+      const factors = {
+        daily: 30,
+        weekly: 52 / 12,
+        biweekly: 26 / 12,
+        monthly: 1,
+        quarterly: 1 / 3,
+        yearly: 1 / 12,
+      };
+      return factors[frequency] || 1;
+    }
+
+    function getNextRecurringDate(recurring) {
+      const base = recurring.lastGenerated || recurring.date || new Date().toISOString().split('T')[0];
+      const date = new Date(base);
+      const next = new Date(date);
+      const frequency = recurring.frequency || 'monthly';
+
+      if (Number.isNaN(next.getTime())) return new Date();
+
+      while (next <= new Date()) {
+        if (frequency === 'daily') next.setDate(next.getDate() + 1);
+        else if (frequency === 'weekly') next.setDate(next.getDate() + 7);
+        else if (frequency === 'biweekly') next.setDate(next.getDate() + 14);
+        else if (frequency === 'quarterly') next.setMonth(next.getMonth() + 3);
+        else if (frequency === 'yearly') next.setFullYear(next.getFullYear() + 1);
+        else next.setMonth(next.getMonth() + 1);
+      }
+
+      return next;
+    }
+
+    const totalBudget = computed(() => budgets.value.reduce((sum, budget) => sum + Number(budget.limit || 0), 0));
+
+    const monthlySeries = computed(() => {
+      const now = new Date();
+      const series = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const income = getTransactionsForMonth(date, 'income').reduce((sum, txn) => sum + Number(txn.amount || 0), 0);
+        const expenses = getTransactionsForMonth(date, 'expense').reduce((sum, txn) => sum + Number(txn.amount || 0), 0);
+        const net = income - expenses;
+        series.push({
+          key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+          labelShort: date.toLocaleDateString('en-US', { month: 'short' }),
+          labelLong: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          month: date.getMonth(),
+          year: date.getFullYear(),
+          date,
+          income,
+          expenses,
+          net,
+          savingsRate: income > 0 ? (net / income) * 100 : 0,
+        });
+      }
+      return series;
+    });
+
+    const currentMonthSummary = computed(() => monthlySeries.value[monthlySeries.value.length - 1] || { income: 0, expenses: 0, net: 0, savingsRate: 0, labelLong: currentMonth.value });
+    const previousMonthSummary = computed(() => monthlySeries.value[monthlySeries.value.length - 2] || { income: 0, expenses: 0, net: 0, savingsRate: 0, labelLong: 'Last month' });
+    const sameMonthLastYearSummary = computed(() => monthlySeries.value.find(item => item.month === currentMonthSummary.value.month && item.year === currentMonthSummary.value.year - 1) || null);
 
     const monthlyIncome = computed(() => {
       const now = new Date();
@@ -423,6 +543,30 @@ const app = createApp({
       </svg>`;
     }
 
+    function generateTrendChartSVG(data, color = '#60a5fa', height = 120) {
+      if (!data || data.length === 0) return '';
+      const values = data.map(item => Number(item.value ?? item));
+      const width = 320;
+      const padding = 10;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = max - min || 1;
+      const pointWidth = (width - (padding * 2)) / Math.max(values.length - 1, 1);
+      const points = values.map((value, index) => {
+        const x = padding + (index * pointWidth);
+        const y = height - padding - (((value - min) / range) * (height - (padding * 2)));
+        return `${x},${y}`;
+      }).join(' ');
+      const area = `${padding},${height - padding} ${points} ${width - padding},${height - padding}`;
+      const last = points.split(' ').pop().split(',');
+      return `<svg viewBox="0 0 ${width} ${height}" class="trend-chart" xmlns="http://www.w3.org/2000/svg">
+        <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+        <polyline points="${area}" fill="${color}" opacity="0.12" stroke="none" />
+        <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="${last[0]}" cy="${last[1]}" r="4" fill="${color}" />
+      </svg>`;
+    }
+
     // ==================== Phase 3: Advanced Search & Filter ====================
     // ==================== Phase 4: Tags Filter ====================
     // Filter state for all filter parameters
@@ -564,43 +708,301 @@ const app = createApp({
     });
 
     const topCategories = computed(() => {
+      const categoryMap = Object.fromEntries(categories.value.map(category => [category.id, category]));
+      const currentMonthDate = getMonthDate(0);
+      const previousMonthDate = getMonthDate(-1);
       const categoryTotals = {};
-      const now = new Date();
-      const month = now.getMonth();
-      const year = now.getFullYear();
+      const previousTotals = {};
+      const budgetMap = Object.fromEntries(budgets.value.map(budget => [budget.categoryId, budget]));
 
-      transactions.value
-        .filter(t => {
-          const d = new Date(t.date);
-          return d.getMonth() === month && d.getFullYear() === year && t.type === 'expense';
-        })
-        .forEach(t => {
-          if (!categoryTotals[t.category]) {
-            categoryTotals[t.category] = 0;
-          }
-          categoryTotals[t.category] += t.amount;
-        });
+      getTransactionsForMonth(currentMonthDate, 'expense').forEach(txn => {
+        categoryTotals[txn.category] = (categoryTotals[txn.category] || 0) + Number(txn.amount || 0);
+      });
 
-      const categoryMap = {};
-      categories.value.forEach(c => {
-        categoryMap[c.id] = c;
+      getTransactionsForMonth(previousMonthDate, 'expense').forEach(txn => {
+        previousTotals[txn.category] = (previousTotals[txn.category] || 0) + Number(txn.amount || 0);
       });
 
       const totals = Object.entries(categoryTotals)
-        .map(([catId, total]) => ({
-          id: catId,
-          ...categoryMap[catId],
-          total,
-        }))
+        .map(([catId, total]) => {
+          const previous = previousTotals[catId] || 0;
+          const delta = getPercentChange(total, previous);
+          const budget = budgetMap[catId];
+          const budgetUsage = budget ? (total / Math.max(Number(budget.limit || 1), 1)) * 100 : 0;
+          let insightBadge = '';
+          let insightState = 'flat';
+
+          if (previous === 0 && total > 0) {
+            insightBadge = 'New this month';
+            insightState = 'new';
+          } else if (Math.abs(delta) >= 8) {
+            insightBadge = `${delta >= 0 ? '+' : ''}${Math.round(delta)}% vs last month`;
+            insightState = delta > 0 ? 'up' : 'down';
+          } else if (budget && budgetUsage >= 100) {
+            insightBadge = `${Math.round(budgetUsage)}% of budget`;
+            insightState = 'warn';
+          }
+
+          return {
+            id: catId,
+            ...(categoryMap[catId] || { name: 'Unknown', emoji: '📌', color: '#6b7280' }),
+            total,
+            previous,
+            delta,
+            budgetUsage,
+            budgetLimit: budget ? Number(budget.limit || 0) : 0,
+            insightBadge,
+            insightState,
+          };
+        })
         .sort((a, b) => b.total - a.total)
         .slice(0, 5);
 
-      const maxTotal = Math.max(...totals.map(t => t.total), 1);
-      return totals.map(t => ({
-        ...t,
-        percentage: (t.total / maxTotal) * 100,
+      const maxTotal = Math.max(...totals.map(item => item.total), 1);
+      return totals.map(item => ({
+        ...item,
+        percentage: (item.total / maxTotal) * 100,
       }));
     });
+
+    const savingsRateTrend = computed(() => {
+      const trend = monthlySeries.value.slice(-6);
+      const current = trend[trend.length - 1] || currentMonthSummary.value;
+      const previous = trend[trend.length - 2] || previousMonthSummary.value;
+      const delta = current.savingsRate - (previous?.savingsRate || 0);
+      return {
+        currentRate: current.savingsRate || 0,
+        currentSavings: current.net || 0,
+        averageRate: trend.length ? trend.reduce((sum, month) => sum + month.savingsRate, 0) / trend.length : 0,
+        delta,
+        direction: delta > 0.5 ? 'up' : delta < -0.5 ? 'down' : 'flat',
+        trend: trend.map(month => Number(month.savingsRate || 0)),
+        labels: trend.map(month => month.labelShort),
+      };
+    });
+
+    const spendingVelocity = computed(() => {
+      const now = new Date();
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const daysElapsed = now.getDate();
+      const projectedSpend = daysElapsed > 0 ? (monthlyExpenses.value / daysElapsed) * daysInMonth : monthlyExpenses.value;
+      const variance = projectedSpend - totalBudget.value;
+      const state = totalBudget.value
+        ? variance > totalBudget.value * 0.03 ? 'over' : variance < -totalBudget.value * 0.03 ? 'under' : 'even'
+        : 'neutral';
+      return {
+        daysInMonth,
+        daysElapsed,
+        projectedSpend,
+        variance,
+        budgetTotal: totalBudget.value,
+        daysElapsedPct: daysInMonth ? (daysElapsed / daysInMonth) * 100 : 0,
+        budgetConsumedPct: totalBudget.value ? (monthlyExpenses.value / totalBudget.value) * 100 : 0,
+        state,
+      };
+    });
+
+    const budgetBurnDown = computed(() => {
+      const variancePct = spendingVelocity.value.budgetConsumedPct - spendingVelocity.value.daysElapsedPct;
+      return {
+        ...spendingVelocity.value,
+        variancePct,
+        state: variancePct > 6 ? 'over' : variancePct < -6 ? 'under' : 'even',
+      };
+    });
+
+    const recurringExpenseProjection = computed(() => {
+      const recurringExpenses = recurringTransactions.value
+        .filter(item => (item.type || 'expense') === 'expense')
+        .map(item => ({
+          ...item,
+          monthlyEquivalent: Number(item.amount || 0) * getFrequencyMonthlyFactor(item.frequency),
+          nextDueDate: getNextRecurringDate(item),
+        }))
+        .sort((a, b) => a.nextDueDate - b.nextDueDate);
+
+      return {
+        monthlyProjected: recurringExpenses.reduce((sum, item) => sum + item.monthlyEquivalent, 0),
+        next30DaysProjected: recurringExpenses
+          .filter(item => (item.nextDueDate - new Date()) / (1000 * 60 * 60 * 24) <= 30)
+          .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+        items: recurringExpenses.slice(0, 4),
+        count: recurringExpenses.length,
+      };
+    });
+
+    const incomeTrend = computed(() => {
+      const trend = monthlySeries.value.slice(-6);
+      const current = trend[trend.length - 1] || currentMonthSummary.value;
+      const previous = trend[trend.length - 2] || previousMonthSummary.value;
+      const change = getPercentChange(current.income || 0, previous?.income || 0);
+      return {
+        currentIncome: current.income || 0,
+        previousIncome: previous?.income || 0,
+        change,
+        direction: change > 1 ? 'up' : change < -1 ? 'down' : 'flat',
+        trend: trend.map(month => month.income || 0),
+        labels: trend.map(month => month.labelShort),
+      };
+    });
+
+    const comparisonSummary = computed(() => {
+      const current = currentMonthSummary.value;
+      const previous = previousMonthSummary.value;
+      const yoy = sameMonthLastYearSummary.value;
+      const fallbackReference = yoy || previous;
+      return {
+        monthLabel: current.labelLong,
+        comparisonLabel: previous?.labelLong || 'Last month',
+        yoyLabel: yoy ? yoy.labelLong : `${previous?.labelLong || 'last month'} (YoY fallback)`,
+        rows: [
+          { label: 'Income', current: current.income, previous: previous.income, yoy: fallbackReference.income, change: getPercentChange(current.income, previous.income) },
+          { label: 'Expenses', current: current.expenses, previous: previous.expenses, yoy: fallbackReference.expenses, change: getPercentChange(current.expenses, previous.expenses) },
+          { label: 'Net Cash', current: current.net, previous: previous.net, yoy: fallbackReference.net, change: getPercentChange(current.net, previous.net) },
+        ],
+      };
+    });
+
+    const netWorthHistory = computed(() => {
+      const history = [];
+      const now = new Date();
+      for (let i = 7; i >= 0; i--) {
+        const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59, 999);
+        const balances = accounts.value.map(account => {
+          const futureImpact = transactions.value
+            .filter(txn => txn.account === account.id && new Date(txn.date) > monthEnd)
+            .reduce((sum, txn) => sum + getTransactionBalanceImpact(txn), 0);
+          return Number(account.balance || 0) - futureImpact;
+        });
+        const assets = balances.filter(balance => balance >= 0).reduce((sum, balance) => sum + balance, 0);
+        const debt = Math.abs(balances.filter(balance => balance < 0).reduce((sum, balance) => sum + balance, 0));
+        history.push({
+          label: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+          labelLong: monthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          assets,
+          debt,
+          value: assets - debt,
+        });
+      }
+      return history;
+    });
+
+    const cashFlowForecast = computed(() => {
+      const forecast = calculateForecast();
+      return {
+        projectedIncome: forecast.projectedMonthIncome || 0,
+        projectedExpenses: forecast.projectedMonthExpenses || 0,
+        projectedNet: forecast.projectedNetCashFlow || 0,
+        predictedEndBalance: forecast.predictedEndBalance || 0,
+        state: (forecast.projectedNetCashFlow || 0) >= 0 ? 'positive' : 'negative',
+      };
+    });
+
+    const debtAccounts = computed(() => {
+      return accounts.value
+        .filter(account => account.type === 'credit' || Number(account.balance || 0) < 0)
+        .map(account => ({
+          ...account,
+          balanceAbs: Math.abs(Math.min(Number(account.balance || 0), 0)),
+          apr: Number(account.apr || 18.9),
+          minPayment: Number(account.minPayment || Math.max(25, Math.round(Math.abs(Number(account.balance || 0)) * 0.02))),
+        }))
+        .filter(account => account.balanceAbs > 0);
+    });
+
+    function calculateDebtPayoffPlan(strategy = 'avalanche') {
+      const extraPayment = Math.max(0, Number(debtSimulator.extraPayment || 0));
+      const debts = debtAccounts.value.map(account => ({
+        id: account.id,
+        name: account.name,
+        apr: Number(account.apr || 18.9),
+        balance: Number(account.balanceAbs || 0),
+        minPayment: Number(account.minPayment || 25),
+      }));
+
+      if (!debts.length) {
+        return { strategy, months: 0, totalInterest: 0, totalPaid: 0, monthlyPayment: 0, payoffOrder: [], timeline: [] };
+      }
+
+      const rankDebts = () => debts
+        .filter(debt => debt.balance > 0.01)
+        .sort((a, b) => {
+          if (strategy === 'snowball') {
+            return a.balance - b.balance || b.apr - a.apr;
+          }
+          return b.apr - a.apr || a.balance - b.balance;
+        });
+
+      let month = 0;
+      let totalInterest = 0;
+      const payoffOrder = [];
+      const timeline = [];
+
+      while (debts.some(debt => debt.balance > 0.01) && month < 600) {
+        month += 1;
+
+        debts.forEach(debt => {
+          if (debt.balance <= 0.01) return;
+          const interest = debt.balance * (debt.apr / 100 / 12);
+          debt.balance += interest;
+          totalInterest += interest;
+        });
+
+        const payments = {};
+        debts.forEach(debt => {
+          if (debt.balance <= 0.01) return;
+          const minimum = Math.min(debt.minPayment, debt.balance);
+          debt.balance -= minimum;
+          payments[debt.id] = minimum;
+        });
+
+        let extraPool = extraPayment;
+        while (extraPool > 0.01) {
+          const activeDebts = rankDebts();
+          if (!activeDebts.length) break;
+          const target = activeDebts[0];
+          const extra = Math.min(extraPool, target.balance);
+          target.balance -= extra;
+          payments[target.id] = (payments[target.id] || 0) + extra;
+          extraPool -= extra;
+        }
+
+        debts.forEach(debt => {
+          if (debt.balance <= 0.01 && !payoffOrder.includes(debt.name)) {
+            debt.balance = 0;
+            payoffOrder.push(debt.name);
+          }
+        });
+
+        if (month <= 6 || month % 6 === 0 || debts.every(debt => debt.balance <= 0.01)) {
+          timeline.push({
+            month,
+            remainingBalance: debts.reduce((sum, debt) => sum + debt.balance, 0),
+            activeCount: debts.filter(debt => debt.balance > 0.01).length,
+          });
+        }
+      }
+
+      const principal = debtAccounts.value.reduce((sum, debt) => sum + debt.balanceAbs, 0);
+      const monthlyPayment = debtAccounts.value.reduce((sum, debt) => sum + debt.minPayment, 0) + extraPayment;
+      return {
+        strategy,
+        months: month,
+        totalInterest,
+        totalPaid: principal + totalInterest,
+        monthlyPayment,
+        payoffOrder,
+        timeline,
+      };
+    }
+
+    const debtPayoffPlans = computed(() => ({
+      snowball: calculateDebtPayoffPlan('snowball'),
+      avalanche: calculateDebtPayoffPlan('avalanche'),
+    }));
+
+    const selectedDebtPayoffPlan = computed(() => debtPayoffPlans.value[debtSimulator.strategy] || debtPayoffPlans.value.avalanche);
 
     const recentTransactions = computed(() => {
       return [...transactions.value].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -696,7 +1098,16 @@ const app = createApp({
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: settings.value.currency,
-      }).format(amount);
+      }).format(Number(amount || 0));
+    }
+
+    function formatPercent(value, digits = 0) {
+      return `${Number(value || 0).toFixed(digits)}%`;
+    }
+
+    function formatSignedPercent(value, digits = 0) {
+      const numeric = Number(value || 0);
+      return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(digits)}%`;
     }
 
     function formatDate(date) {
@@ -1433,36 +1844,35 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       const currentYear = now.getFullYear();
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       const dayOfMonth = now.getDate();
-      
-      const monthExpenses = transactions.value
-        .filter(t => t.type === 'expense' &&
-                     new Date(t.date).getMonth() === currentMonth &&
-                     new Date(t.date).getFullYear() === currentYear)
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      const averageDailySpend = monthExpenses / dayOfMonth;
       const remainingDays = daysInMonth - dayOfMonth;
-      const projectedRemainingSpend = averageDailySpend * remainingDays;
-      const projectedMonthTotal = monthExpenses + projectedRemainingSpend;
-      
+      const monthDate = new Date(currentYear, currentMonth, 1);
+
+      const monthIncome = getTransactionsForMonth(monthDate, 'income').reduce((sum, txn) => sum + Number(txn.amount || 0), 0);
+      const monthExpenses = getTransactionsForMonth(monthDate, 'expense').reduce((sum, txn) => sum + Number(txn.amount || 0), 0);
+      const averageDailySpend = dayOfMonth > 0 ? monthExpenses / dayOfMonth : monthExpenses;
+      const averageDailyIncome = dayOfMonth > 0 ? monthIncome / dayOfMonth : monthIncome;
+
+      const trailingIncomeAverage = monthlySeries.value.slice(-3).reduce((sum, item) => sum + Number(item.income || 0), 0) / Math.max(Math.min(monthlySeries.value.length, 3), 1);
+      const projectedMonthExpenses = monthExpenses + (averageDailySpend * remainingDays);
+      const projectedMonthIncome = Math.max(monthIncome + (averageDailyIncome * remainingDays), trailingIncomeAverage || monthIncome);
+      const projectedNetCashFlow = projectedMonthIncome - projectedMonthExpenses;
+
       forecastData.daysInMonth = daysInMonth;
       forecastData.daysElapsed = dayOfMonth;
       forecastData.averageDailySpend = averageDailySpend;
-      
-      // Get current month's starting balance from account
+      forecastData.averageDailyIncome = averageDailyIncome;
+      forecastData.projectedMonthIncome = projectedMonthIncome;
+      forecastData.projectedMonthExpenses = projectedMonthExpenses;
+      forecastData.projectedNetCashFlow = projectedNetCashFlow;
+
       const primaryAccount = accounts.value[0];
       if (primaryAccount) {
-        // Estimate starting balance (current - month expenses + month income)
-        const monthIncome = transactions.value
-          .filter(t => t.type === 'income' &&
-                       new Date(t.date).getMonth() === currentMonth &&
-                       new Date(t.date).getFullYear() === currentYear)
-          .reduce((sum, t) => sum + t.amount, 0);
-        
-        const estimatedStartBalance = primaryAccount.balance + monthExpenses - monthIncome;
-        forecastData.predictedEndBalance = estimatedStartBalance - projectedMonthTotal;
+        const estimatedStartBalance = Number(primaryAccount.balance || 0) + monthExpenses - monthIncome;
+        forecastData.predictedEndBalance = estimatedStartBalance + projectedMonthIncome - projectedMonthExpenses;
+      } else {
+        forecastData.predictedEndBalance = projectedNetCashFlow;
       }
-      
+
       return forecastData;
     }
 
@@ -1771,6 +2181,20 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       sparklineData,
       suggestedBudgets,
       topCategories,
+      savingsRateTrend,
+      spendingVelocity,
+      budgetBurnDown,
+      recurringExpenseProjection,
+      incomeTrend,
+      comparisonSummary,
+      netWorthHistory,
+      cashFlowForecast,
+      debtAccounts,
+      debtPayoffPlans,
+      selectedDebtPayoffPlan,
+      currentMonthSummary,
+      previousMonthSummary,
+      sameMonthLastYearSummary,
       recentTransactions,
       filteredTransactions,
       groupedTransactions,
@@ -1779,10 +2203,13 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
 
       // Functions
       formatCurrency,
+      formatPercent,
+      formatSignedPercent,
       formatDate,
       showNotification,
       hideModals,
       generateSparklineSVG,
+      generateTrendChartSVG,
       generateRecurringTransactions,
       addTransaction,
       addReceiptTransaction,
@@ -1839,6 +2266,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       peerBenchmarks,
       enhancedGoals,
       forecastData,
+      debtSimulator,
       currencyExchangeRates,
       syncModalVisible,
       syncToken,

@@ -22,7 +22,7 @@
 <nav id="nav">
   <div class="nav-inner">
     <a href="#" class="nav-logo">NIGHT LEDGER</a>
-    <span class="nav-title">Finance Analysis</span>
+    <span class="nav-title">Financial Intelligence</span>
   </div>
 </nav>
 
@@ -48,7 +48,7 @@
         </div>
 
         <!-- Summary cards -->
-        <div class="summary-cards">
+        <div class="summary-cards summary-cards-phase8">
           <div class="card card-income">
             <div class="card-header">
               <div class="card-label">Income ({{ currentMonth }})</div>
@@ -72,8 +72,100 @@
             <div v-if="sparklineData.expenses" v-html="generateSparklineSVG(sparklineData.expenses, '#ef4444', 30)" class="card-sparkline"></div>
           </div>
           <div class="card card-balance">
-            <div class="card-label">Net Worth</div>
+            <div class="card-header">
+              <div class="card-label">Net Worth</div>
+              <span class="delta-badge" :class="netWorthHistory[netWorthHistory.length - 1]?.value >= netWorthHistory[netWorthHistory.length - 2]?.value ? 'up' : 'down'">
+                {{ formatSignedPercent(((netWorthHistory[netWorthHistory.length - 1]?.value || 0) - (netWorthHistory[netWorthHistory.length - 2]?.value || 0)) / Math.max(Math.abs(netWorthHistory[netWorthHistory.length - 2]?.value || 1), 1) * 100, 1) }}
+              </span>
+            </div>
             <div class="card-value">{{ formatCurrency(netWorth) }}</div>
+            <div v-if="netWorthHistory.length" v-html="generateSparklineSVG(netWorthHistory.map(point => point.value), '#60a5fa', 30)" class="card-sparkline"></div>
+          </div>
+          <div class="card card-savings">
+            <div class="card-header">
+              <div class="card-label">Savings Rate</div>
+              <span class="delta-badge" :class="savingsRateTrend.direction">{{ formatSignedPercent(savingsRateTrend.delta, 1) }}</span>
+            </div>
+            <div class="card-value">{{ formatPercent(savingsRateTrend.currentRate, 1) }}</div>
+            <div class="card-subvalue">{{ formatCurrency(savingsRateTrend.currentSavings) }} net saved</div>
+            <div v-if="savingsRateTrend.trend.length" v-html="generateSparklineSVG(savingsRateTrend.trend.map(value => value + 100), '#a78bfa', 30)" class="card-sparkline"></div>
+          </div>
+        </div>
+
+        <div class="section intelligence-grid">
+          <div class="intel-card" :class="'state-' + spendingVelocity.state">
+            <div class="intel-card-header">
+              <h3 class="section-title">⚡ Spending Velocity</h3>
+              <span class="intel-chip">{{ formatCurrency(spendingVelocity.projectedSpend) }}</span>
+            </div>
+            <p class="intel-copy">On pace to spend {{ formatCurrency(spendingVelocity.projectedSpend) }} this month.</p>
+            <p class="intel-copy text-muted" v-if="spendingVelocity.budgetTotal">
+              {{ spendingVelocity.state === 'over' ? 'Over budget pace by' : spendingVelocity.state === 'under' ? 'Under budget pace by' : 'Almost exactly on budget pace at' }}
+              {{ formatCurrency(Math.abs(spendingVelocity.variance)) }}.
+            </p>
+            <div class="burn-comparison">
+              <div class="burn-row">
+                <span>Days elapsed</span>
+                <strong>{{ formatPercent(budgetBurnDown.daysElapsedPct, 0) }}</strong>
+              </div>
+              <div class="burn-track"><div class="burn-fill burn-fill-days" :style="{ width: Math.min(100, budgetBurnDown.daysElapsedPct) + '%' }"></div></div>
+              <div class="burn-row">
+                <span>Budget consumed</span>
+                <strong>{{ formatPercent(budgetBurnDown.budgetConsumedPct, 0) }}</strong>
+              </div>
+              <div class="burn-track"><div class="burn-fill burn-fill-budget" :style="{ width: Math.min(100, budgetBurnDown.budgetConsumedPct) + '%' }"></div></div>
+            </div>
+          </div>
+
+          <div class="intel-card" :class="cashFlowForecast.state === 'positive' ? 'state-positive' : 'state-negative'">
+            <div class="intel-card-header">
+              <h3 class="section-title">💸 Cash Flow Forecast</h3>
+              <span class="intel-chip">{{ formatCurrency(cashFlowForecast.projectedNet) }}</span>
+            </div>
+            <p class="intel-copy">Projected month-end balance: <strong>{{ formatCurrency(cashFlowForecast.predictedEndBalance) }}</strong></p>
+            <div class="metric-pair-grid">
+              <div class="metric-pair">
+                <span class="metric-label">Projected income</span>
+                <strong>{{ formatCurrency(cashFlowForecast.projectedIncome) }}</strong>
+              </div>
+              <div class="metric-pair">
+                <span class="metric-label">Projected outflow</span>
+                <strong>{{ formatCurrency(cashFlowForecast.projectedExpenses) }}</strong>
+              </div>
+            </div>
+            <p class="intel-copy text-muted">Income trend {{ formatSignedPercent(incomeTrend.change, 1) }} month-over-month.</p>
+          </div>
+
+          <div class="intel-card state-neutral">
+            <div class="intel-card-header">
+              <h3 class="section-title">🔁 Recurring Projection</h3>
+              <span class="intel-chip">{{ recurringExpenseProjection.count }} items</span>
+            </div>
+            <p class="intel-copy">Recurring expenses project to {{ formatCurrency(recurringExpenseProjection.monthlyProjected) }} / month.</p>
+            <p class="intel-copy text-muted">{{ formatCurrency(recurringExpenseProjection.next30DaysProjected) }} due in the next 30 days.</p>
+            <div class="compact-list">
+              <div v-for="item in recurringExpenseProjection.items" :key="item.id" class="compact-list-row">
+                <span>{{ item.description }}</span>
+                <strong>{{ formatCurrency(item.amount) }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="intel-card state-neutral">
+            <div class="intel-card-header">
+              <h3 class="section-title">🆚 Comparison Summary</h3>
+              <span class="intel-chip">{{ comparisonSummary.comparisonLabel }}</span>
+            </div>
+            <div class="comparison-list">
+              <div v-for="row in comparisonSummary.rows" :key="row.label" class="comparison-row">
+                <span>{{ row.label }}</span>
+                <div class="comparison-values">
+                  <strong>{{ formatCurrency(row.current) }}</strong>
+                  <span :class="row.change >= 0 ? 'text-negative-soft' : 'text-positive-soft'">{{ formatSignedPercent(row.change, 1) }}</span>
+                </div>
+              </div>
+            </div>
+            <p class="intel-copy text-muted">YoY reference: {{ comparisonSummary.yoyLabel }}</p>
           </div>
         </div>
 
@@ -97,14 +189,20 @@
         <div class="section">
           <h3 class="section-title">Top Spending ({{ currentMonth }})</h3>
           <div class="category-breakdown">
-            <div v-for="cat in topCategories" :key="cat.id" class="category-row">
+            <div v-for="cat in topCategories" :key="cat.id" class="category-row category-row-intel">
+              <div class="category-row-top">
+                <div class="category-meta">
+                  <span class="category-name">{{ cat.emoji }} {{ cat.name }}</span>
+                  <span v-if="cat.insightBadge" class="insight-badge" :class="cat.insightState">{{ cat.insightBadge }}</span>
+                </div>
+                <div class="category-amount">{{ formatCurrency(cat.total) }}</div>
+              </div>
               <div class="category-bar">
-                <span class="category-emoji">{{ cat.emoji }}</span>
                 <div class="bar-container">
                   <div class="bar-fill" :style="{ width: cat.percentage + '%', backgroundColor: cat.color }"></div>
                 </div>
               </div>
-              <div class="category-amount">{{ formatCurrency(cat.total) }}</div>
+              <div class="category-footnote text-muted" v-if="cat.budgetLimit">Budget {{ formatPercent(cat.budgetUsage, 0) }} used</div>
             </div>
           </div>
         </div>
@@ -347,33 +445,135 @@
       </div>
     </div>
 
-    <!-- Analytics Tab (Phase 5) -->
+    <!-- Intelligence Tab (Phase 8) -->
     <div v-show="activeTab === 'analytics'" class="tab-content">
-      <div class="analytics">
-        <!-- Spending Heatmap -->
+      <div class="analytics analytics-phase8">
         <div class="section">
-          <h3 class="section-title">📊 Spending Heatmap (By Day of Week)</h3>
-          <div class="heatmap-container">
-            <div v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="day" class="heatmap-cell">
-              <div class="heatmap-day">{{ day }}</div>
-              <div class="heatmap-bar" :style="{ height: (generateSpendingHeatmap()[day] / Math.max(...Object.values(generateSpendingHeatmap()).filter((v, k) => k !== 'counts')) || 1) * 100 + '%' }"></div>
-              <div class="heatmap-value">{{ formatCurrency(generateSpendingHeatmap()[day]) }}</div>
+          <div class="section-header">
+            <h3 class="section-title">🧠 Financial Intelligence</h3>
+            <span class="text-muted">Phase 8 layer</span>
+          </div>
+          <div class="insight-grid">
+            <div class="forecast-card">
+              <div class="forecast-label">Income Growth</div>
+              <div class="forecast-value">{{ formatSignedPercent(incomeTrend.change, 1) }}</div>
+              <div class="forecast-subtitle">{{ formatCurrency(incomeTrend.currentIncome) }} this month</div>
+              <div v-html="generateSparklineSVG(incomeTrend.trend, '#10b981', 32)" class="card-sparkline"></div>
+            </div>
+            <div class="forecast-card">
+              <div class="forecast-label">Savings Rate</div>
+              <div class="forecast-value">{{ formatPercent(savingsRateTrend.currentRate, 1) }}</div>
+              <div class="forecast-subtitle">6 month trend</div>
+              <div v-html="generateSparklineSVG(savingsRateTrend.trend.map(value => value + 100), '#a78bfa', 32)" class="card-sparkline"></div>
+            </div>
+            <div class="forecast-card">
+              <div class="forecast-label">Recurring Load</div>
+              <div class="forecast-value">{{ formatCurrency(recurringExpenseProjection.monthlyProjected) }}</div>
+              <div class="forecast-subtitle">{{ recurringExpenseProjection.count }} scheduled expenses</div>
+            </div>
+            <div class="forecast-card">
+              <div class="forecast-label">Forecast Net Cash</div>
+              <div class="forecast-value" :style="{ color: cashFlowForecast.projectedNet >= 0 ? '#10b981' : '#ef4444' }">{{ formatCurrency(cashFlowForecast.projectedNet) }}</div>
+              <div class="forecast-subtitle">Projected month-end balance {{ formatCurrency(cashFlowForecast.predictedEndBalance) }}</div>
             </div>
           </div>
         </div>
 
-        <!-- Top Merchants -->
         <div class="section">
-          <h3 class="section-title">🏪 Top Merchants (Frequency)</h3>
-          <div class="merchant-list">
-            <div v-for="(merchant, idx) in getTopMerchants(10)" :key="idx" class="merchant-row">
-              <div class="merchant-name">{{ merchant.name }}</div>
-              <div class="merchant-freq">{{ merchant.frequency }}×</div>
+          <div class="section-header">
+            <h3 class="section-title">🏦 Net Worth Trend</h3>
+            <span class="text-muted">Derived from account balances + transaction history</span>
+          </div>
+          <div class="trend-panel">
+            <div v-html="generateTrendChartSVG(netWorthHistory, '#60a5fa', 150)" class="trend-chart-wrapper"></div>
+            <div class="trend-history">
+              <div v-for="point in netWorthHistory" :key="point.labelLong" class="trend-history-row">
+                <span>{{ point.labelLong }}</span>
+                <strong>{{ formatCurrency(point.value) }}</strong>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Category Trends (MoM) -->
+        <div class="section">
+          <div class="section-header">
+            <h3 class="section-title">🔥 Budget Burn-down</h3>
+            <span class="insight-badge" :class="budgetBurnDown.state === 'over' ? 'up' : budgetBurnDown.state === 'under' ? 'down' : 'flat'">{{ formatSignedPercent(budgetBurnDown.variancePct, 1) }}</span>
+          </div>
+          <div class="budget-burndown-card">
+            <div class="burndown-axis">
+              <div class="burndown-label">Time used</div>
+              <div class="burn-track"><div class="burn-fill burn-fill-days" :style="{ width: Math.min(100, budgetBurnDown.daysElapsedPct) + '%' }"></div></div>
+              <strong>{{ formatPercent(budgetBurnDown.daysElapsedPct, 0) }}</strong>
+            </div>
+            <div class="burndown-axis">
+              <div class="burndown-label">Budget used</div>
+              <div class="burn-track"><div class="burn-fill burn-fill-budget" :style="{ width: Math.min(100, budgetBurnDown.budgetConsumedPct) + '%' }"></div></div>
+              <strong>{{ formatPercent(budgetBurnDown.budgetConsumedPct, 0) }}</strong>
+            </div>
+            <p class="intel-copy text-muted">{{ budgetBurnDown.state === 'over' ? 'Budget consumption is running ahead of the calendar.' : budgetBurnDown.state === 'under' ? 'Spending is trailing calendar pace.' : 'Budget use is tracking closely to elapsed days.' }}</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-header">
+            <h3 class="section-title">🆚 This Month vs Last Month</h3>
+            <span class="text-muted">YoY fallback: {{ comparisonSummary.yoyLabel }}</span>
+          </div>
+          <div class="comparison-summary-grid">
+            <div v-for="row in comparisonSummary.rows" :key="row.label" class="comparison-summary-card">
+              <div class="forecast-label">{{ row.label }}</div>
+              <div class="forecast-value">{{ formatCurrency(row.current) }}</div>
+              <div class="forecast-subtitle">{{ comparisonSummary.comparisonLabel }} · {{ formatCurrency(row.previous) }}</div>
+              <div class="comparison-delta" :class="row.change >= 0 ? 'negative' : 'positive'">{{ formatSignedPercent(row.change, 1) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-header">
+            <h3 class="section-title">💳 Debt Payoff Simulator</h3>
+            <span class="text-muted">Snowball vs avalanche</span>
+          </div>
+          <div v-if="debtAccounts.length" class="debt-simulator">
+            <div class="debt-controls">
+              <label class="control-stack">
+                <span>Extra monthly payment</span>
+                <input v-model.number="debtSimulator.extraPayment" type="number" min="0" step="25" class="text-input">
+              </label>
+              <div class="segmented-control">
+                <button class="filter-chip" :class="{ active: debtSimulator.strategy === 'snowball' }" @click="debtSimulator.strategy = 'snowball'">Snowball</button>
+                <button class="filter-chip" :class="{ active: debtSimulator.strategy === 'avalanche' }" @click="debtSimulator.strategy = 'avalanche'">Avalanche</button>
+              </div>
+            </div>
+            <div class="comparison-summary-grid">
+              <div class="comparison-summary-card">
+                <div class="forecast-label">Snowball</div>
+                <div class="forecast-value">{{ debtPayoffPlans.snowball.months }} mo</div>
+                <div class="forecast-subtitle">Interest {{ formatCurrency(debtPayoffPlans.snowball.totalInterest) }}</div>
+              </div>
+              <div class="comparison-summary-card">
+                <div class="forecast-label">Avalanche</div>
+                <div class="forecast-value">{{ debtPayoffPlans.avalanche.months }} mo</div>
+                <div class="forecast-subtitle">Interest {{ formatCurrency(debtPayoffPlans.avalanche.totalInterest) }}</div>
+              </div>
+              <div class="comparison-summary-card emphasis">
+                <div class="forecast-label">Selected strategy</div>
+                <div class="forecast-value">{{ selectedDebtPayoffPlan.months }} mo</div>
+                <div class="forecast-subtitle">Monthly payment {{ formatCurrency(selectedDebtPayoffPlan.monthlyPayment) }}</div>
+              </div>
+            </div>
+            <div class="debt-timeline">
+              <div v-for="step in selectedDebtPayoffPlan.timeline.slice(0, 6)" :key="step.month" class="trend-history-row">
+                <span>Month {{ step.month }}</span>
+                <strong>{{ formatCurrency(step.remainingBalance) }}</strong>
+              </div>
+            </div>
+            <p class="intel-copy text-muted">Payoff order: {{ selectedDebtPayoffPlan.payoffOrder.join(' → ') || 'No debt accounts' }}</p>
+          </div>
+          <div v-else class="text-muted" style="padding: 1rem 0;">No debt accounts detected. Credit balances below zero will appear here automatically.</div>
+        </div>
+
         <div class="section">
           <h3 class="section-title">📈 Category Trends (Month-over-Month %)</h3>
           <div class="trend-list">
@@ -389,21 +589,27 @@
           </div>
         </div>
 
-        <!-- Peer Benchmarks -->
         <div class="section">
-          <h3 class="section-title">👥 Peer Benchmarks (Sample Data)</h3>
-          <div class="benchmark-list">
-            <div v-for="(benchmark, category) in peerBenchmarks" :key="category" class="benchmark-row">
-              <div class="benchmark-name">{{ category }}</div>
-              <div class="benchmark-info">
-                <span class="benchmark-avg">Avg: {{ formatCurrency(benchmark.avg) }}</span>
-                <span class="benchmark-percentile">{{ benchmark.percentile }}th %ile</span>
-              </div>
+          <h3 class="section-title">🏪 Top Merchants (Frequency)</h3>
+          <div class="merchant-list">
+            <div v-for="(merchant, idx) in getTopMerchants(10)" :key="idx" class="merchant-row">
+              <div class="merchant-name">{{ merchant.name }}</div>
+              <div class="merchant-freq">{{ merchant.frequency }}×</div>
             </div>
           </div>
         </div>
 
-        <!-- Spending Anomalies (Phase 6) -->
+        <div class="section">
+          <h3 class="section-title">📊 Spending Heatmap (By Day of Week)</h3>
+          <div class="heatmap-container">
+            <div v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="day" class="heatmap-cell">
+              <div class="heatmap-day">{{ day }}</div>
+              <div class="heatmap-bar" :style="{ height: (generateSpendingHeatmap()[day] / Math.max(...Object.values(generateSpendingHeatmap()).filter((v, k) => k !== 'counts')) || 1) * 100 + '%' }"></div>
+              <div class="heatmap-value">{{ formatCurrency(generateSpendingHeatmap()[day]) }}</div>
+            </div>
+          </div>
+        </div>
+
         <div class="section">
           <h3 class="section-title">⚠️ Spending Anomalies (>2σ from mean)</h3>
           <div v-if="detectAnomalies().length > 0" class="anomaly-list">
@@ -420,9 +626,8 @@
           </div>
         </div>
 
-        <!-- Month-End Forecast (Phase 6) -->
         <div class="section">
-          <h3 class="section-title">🔮 Month-End Forecast</h3>
+          <h3 class="section-title">🔮 Forecasting</h3>
           <div class="forecast-container">
             <div class="forecast-card">
               <div class="forecast-label">Avg Daily Spend</div>
@@ -430,8 +635,13 @@
               <div class="forecast-subtitle">{{ calculateForecast().daysElapsed }} days elapsed</div>
             </div>
             <div class="forecast-card">
+              <div class="forecast-label">Projected Month Income</div>
+              <div class="forecast-value">{{ formatCurrency(calculateForecast().projectedMonthIncome) }}</div>
+              <div class="forecast-subtitle">Income growth {{ formatSignedPercent(incomeTrend.change, 1) }}</div>
+            </div>
+            <div class="forecast-card">
               <div class="forecast-label">Projected Month Total</div>
-              <div class="forecast-value">{{ formatCurrency(monthlyExpenses + (calculateForecast().averageDailySpend * (calculateForecast().daysInMonth - calculateForecast().daysElapsed))) }}</div>
+              <div class="forecast-value">{{ formatCurrency(calculateForecast().projectedMonthExpenses) }}</div>
               <div class="forecast-subtitle">{{ calculateForecast().daysInMonth - calculateForecast().daysElapsed }} days left</div>
             </div>
             <div class="forecast-card">
@@ -597,9 +807,9 @@
     </button>
     <button :class="['nav-btn', { active: activeTab === 'analytics' }]"
             @click="activeTab = 'analytics'"
-            title="Analytics">
+            title="Intelligence">
       <span class="nav-icon">📊</span>
-      <span class="nav-label">Analysis</span>
+      <span class="nav-label">Intel</span>
     </button>
     <button :class="['nav-btn', { active: activeTab === 'accounts' }]"
             @click="activeTab = 'accounts'"

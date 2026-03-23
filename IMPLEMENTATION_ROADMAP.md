@@ -72,22 +72,22 @@
 
 ---
 
-### Phase 8 — Financial intelligence layer ⏳
+### Phase 8 — Financial intelligence layer ✅
 **Goal:** Add proactive analysis that turns the app into a finance copilot.
 
 **Features:**
-- [ ] Spending velocity alerts ("On pace to spend $X this month")
-- [ ] Savings-rate calculations and trends
-- [ ] Net-worth tracker chart (assets - liabilities over time)
-- [ ] Category insight badges ("Dining +25% vs last month")
-- [ ] Debt payoff simulator (avalanche vs snowball strategies)
-- [ ] Income growth tracking
-- [ ] Budget burn-down view (days remaining vs pace)
-- [ ] Comparison views (this month vs last, YoY trends)
-- [ ] Recurring expense projection
-- [ ] Cash flow forecasting
+- [x] Spending velocity alerts ("On pace to spend $X this month")
+- [x] Savings-rate calculations and trends
+- [x] Net-worth tracker chart (assets - liabilities over time)
+- [x] Category insight badges ("Dining +25% vs last month")
+- [x] Debt payoff simulator (avalanche vs snowball strategies)
+- [x] Income growth tracking
+- [x] Budget burn-down view (days remaining vs pace)
+- [x] Comparison views (this month vs last, YoY trends)
+- [x] Recurring expense projection
+- [x] Cash flow forecasting
 
-**Status:** PENDING
+**Status:** SHIPPED
 
 ---
 
