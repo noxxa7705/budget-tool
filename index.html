@@ -33,21 +33,46 @@
   <div class="content-area">
     
     <!-- Dashboard Tab -->
-    <div v-show="activeTab === 'dashboard'" class="tab-content">
-      <div class="dashboard">
+    <div v-show="activeTab === 'dashboard'\" class=\"tab-content\">
+      <div class=\"dashboard\">
+        <!-- AI Insight Banner -->
+        <div v-if=\"aiInsight || aiInsightLoading\" class=\"ai-insight-banner\">
+          <div class=\"insight-icon\">✨</div>
+          <div class=\"insight-content\">
+            <div class=\"insight-label\">AI Insight</div>
+            <div v-if=\"aiInsightLoading\" class=\"insight-text loading\">Analyzing spending patterns...</div>
+            <div v-else class=\"insight-text\">{{ aiInsight }}</div>
+          </div>
+          <button @click=\"fetchAIInsight\" class=\"insight-refresh\" :disabled=\"aiInsightLoading\" title=\"Refresh insight\">🔄</button>
+        </div>
+
         <!-- Summary cards -->
-        <div class="summary-cards">
-          <div class="card card-income">
-            <div class="card-label">Income ({{ currentMonth }})</div>
-            <div class="card-value">{{ formatCurrency(monthlyIncome) }}</div>
+        <div class=\"summary-cards\">
+          <div class=\"card card-income\">
+            <div class=\"card-header\">
+              <div class=\"card-label\">Income ({{ currentMonth }})</div>
+              <span class=\"delta-badge\" :class=\"monthlyDelta.income.direction\">
+                {{ monthlyDelta.income.direction === 'up' ? '↑' : monthlyDelta.income.direction === 'down' ? '↓' : '→' }}
+                {{ Math.abs(monthlyDelta.income.delta).toFixed(1) }}%
+              </span>
+            </div>
+            <div class=\"card-value\">{{ formatCurrency(monthlyIncome) }}</div>
+            <div v-if=\"sparklineData.income\" v-html=\"generateSparklineSVG(sparklineData.income, '#10b981', 30)\" class=\"card-sparkline\"></div>
           </div>
-          <div class="card card-expense">
-            <div class="card-label">Expenses ({{ currentMonth }})</div>
-            <div class="card-value">{{ formatCurrency(monthlyExpenses) }}</div>
+          <div class=\"card card-expense\">
+            <div class=\"card-header\">
+              <div class=\"card-label\">Expenses ({{ currentMonth }})</div>
+              <span class=\"delta-badge\" :class=\"monthlyDelta.expenses.direction\">
+                {{ monthlyDelta.expenses.direction === 'up' ? '↑' : monthlyDelta.expenses.direction === 'down' ? '↓' : '→' }}
+                {{ Math.abs(monthlyDelta.expenses.delta).toFixed(1) }}%
+              </span>
+            </div>
+            <div class=\"card-value\">{{ formatCurrency(monthlyExpenses) }}</div>
+            <div v-if=\"sparklineData.expenses\" v-html=\"generateSparklineSVG(sparklineData.expenses, '#ef4444', 30)\" class=\"card-sparkline\"></div>
           </div>
-          <div class="card card-balance">
-            <div class="card-label">Net Worth</div>
-            <div class="card-value">{{ formatCurrency(netWorth) }}</div>
+          <div class=\"card card-balance\">
+            <div class=\"card-label\">Net Worth</div>
+            <div class=\"card-value\">{{ formatCurrency(netWorth) }}</div>
           </div>
         </div>
 
@@ -309,40 +334,58 @@
       </div>
       <div class="sheet-content">
         <!-- Manual entry -->
-        <div v-show="quickAddMode === 'manual'" class="form-section">
-          <div class="form-group">
+        <div v-show=\"quickAddMode === 'manual'\" class=\"form-section\">
+          <div class=\"form-group\">
             <label>Amount</label>
-            <div class="numpad-container">
-              <input v-model="quickAdd.amount" type="number" placeholder="0.00" class="amount-input">
+            <div class=\"numpad-container\">
+              <input v-model=\"quickAdd.amount\" type=\"number\" placeholder=\"0.00\" class=\"amount-input\">
             </div>
           </div>
-          <div class="form-group">
+          <div class=\"form-group\">
             <label>Category</label>
-            <div class="category-chips">
-              <button v-for="cat in categories" :key="cat.id"
-                      :class="['chip', { active: quickAdd.category === cat.id }]"
-                      @click="quickAdd.category = cat.id">
+            <div class=\"category-chips\">
+              <button v-for=\"cat in categories\" :key=\"cat.id\"
+                      :class=\"['chip', { active: quickAdd.category === cat.id }]\"
+                      @click=\"quickAdd.category = cat.id\">
                 {{ cat.emoji }} {{ cat.name }}
               </button>
             </div>
           </div>
-          <div class="form-group">
+          <div class=\"form-group\">
             <label>Account</label>
-            <select v-model="quickAdd.account" class="select-input">
-              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
+            <select v-model=\"quickAdd.account\" class=\"select-input\">
+              <option v-for=\"acc in accounts\" :key=\"acc.id\" :value=\"acc.id\">
                 {{ acc.name }}
               </option>
             </select>
           </div>
-          <div class="form-group">
+          <div class=\"form-group\">
             <label>Description</label>
-            <input v-model="quickAdd.description" type="text" placeholder="What was this for?" class="text-input">
+            <input v-model=\"quickAdd.description\" type=\"text\" placeholder=\"What was this for?\" class=\"text-input\">
+            <!-- AI Category Predictions -->
+            <div v-if=\"predictedCategories.length > 0 || categoryPredictionLoading\" class=\"category-predictions\">
+              <div v-if=\"categoryPredictionLoading\" class=\"prediction-loading\">
+                <span class=\"spinner\">⟳</span> Analyzing...
+              </div>
+              <div v-else class=\"predicted-options\">
+                <div class=\"prediction-label\">Suggested categories:</div>
+                <div class=\"prediction-chips\">
+                  <button v-for=\"(catId, idx) in predictedCategories\" :key=\"catId\"
+                          @click=\"quickAdd.category = catId\"
+                          class=\"prediction-chip\"
+                          :title=\"categories.find(c => c.id === catId)?.name\">
+                    {{ categories.find(c => c.id === catId)?.emoji }}
+                    <span class=\"confidence\">{{ idx === 0 ? 'High' : idx === 1 ? 'Med' : 'Low' }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="form-group">
+          <div class=\"form-group\">
             <label>Date</label>
-            <input v-model="quickAdd.date" type="date" class="text-input">
+            <input v-model=\"quickAdd.date\" type=\"date\" class=\"text-input\">
           </div>
-          <button @click="addTransaction" class="btn-primary btn-full">Add Expense</button>
+          <button @click=\"addTransaction\" class=\"btn-primary btn-full\">Add Expense</button>
         </div>
 
         <!-- Receipt OCR -->

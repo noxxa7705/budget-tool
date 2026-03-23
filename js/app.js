@@ -38,6 +38,16 @@ const app = createApp({
       type: 'expense',
     });
 
+    // ==================== Phase 1: UX Improvements State ====================
+    // AI Insights
+    const aiInsight = ref(null);
+    const aiInsightLoading = ref(false);
+    
+    // Category prediction
+    const predictedCategories = ref([]);
+    const categoryPredictionLoading = ref(false);
+    let categoryPredictionAbortController = null;
+
     // ==================== Data from Storage ====================
     let accounts = ref([]);
     let transactions = ref([]);
@@ -59,6 +69,8 @@ const app = createApp({
       await initializeIndexedDB();
       setupServiceWorker();
       applyTheme();
+      // Fetch AI insight on mount
+      await fetchAIInsight();
     });
 
     async function loadAllData() {
@@ -169,6 +181,134 @@ const app = createApp({
     const netWorth = computed(() => {
       return accounts.value.reduce((sum, acc) => sum + acc.balance, 0);
     });
+
+    // ==================== Phase 1: Month-over-Month Deltas ====================
+    const monthlyDelta = computed(() => {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      // Get previous month
+      let prevMonth = currentMonth - 1;
+      let prevYear = currentYear;
+      if (prevMonth < 0) {
+        prevMonth = 11;
+        prevYear--;
+      }
+
+      // Current month expenses
+      const currentExpenses = transactions.value
+        .filter(t => {
+          const d = new Date(t.date);
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear && t.type === 'expense';
+        })
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Previous month expenses
+      const prevExpenses = transactions.value
+        .filter(t => {
+          const d = new Date(t.date);
+          return d.getMonth() === prevMonth && d.getFullYear() === prevYear && t.type === 'expense';
+        })
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Current month income
+      const currentIncome = transactions.value
+        .filter(t => {
+          const d = new Date(t.date);
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear && t.type === 'income';
+        })
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Previous month income
+      const prevIncome = transactions.value
+        .filter(t => {
+          const d = new Date(t.date);
+          return d.getMonth() === prevMonth && d.getFullYear() === prevYear && t.type === 'income';
+        })
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const expenseDelta = prevExpenses > 0 ? ((currentExpenses - prevExpenses) / prevExpenses) * 100 : 0;
+      const incomeDelta = prevIncome > 0 ? ((currentIncome - prevIncome) / prevIncome) * 100 : 0;
+
+      return {
+        expenses: {
+          current: currentExpenses,
+          previous: prevExpenses,
+          delta: expenseDelta,
+          direction: expenseDelta > 0 ? 'up' : expenseDelta < 0 ? 'down' : 'flat',
+        },
+        income: {
+          current: currentIncome,
+          previous: prevIncome,
+          delta: incomeDelta,
+          direction: incomeDelta > 0 ? 'up' : incomeDelta < 0 ? 'down' : 'flat',
+        },
+      };
+    });
+
+    // ==================== Phase 1: Sparkline Data ====================
+    const sparklineData = computed(() => {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      // Get last 6 months of data
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(currentYear, currentMonth - i, 1);
+        months.push({ month: d.getMonth(), year: d.getFullYear() });
+      }
+
+      const expenseSparkline = months.map(m => {
+        return transactions.value
+          .filter(t => {
+            const d = new Date(t.date);
+            return d.getMonth() === m.month && d.getFullYear() === m.year && t.type === 'expense';
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+
+      const incomeSparkline = months.map(m => {
+        return transactions.value
+          .filter(t => {
+            const d = new Date(t.date);
+            return d.getMonth() === m.month && d.getFullYear() === m.year && t.type === 'income';
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
+      });
+
+      return {
+        expenses: expenseSparkline,
+        income: incomeSparkline,
+      };
+    });
+
+    // Helper function to generate SVG sparkline
+    function generateSparklineSVG(data, color = '#4ade80', height = 40) {
+      if (!data || data.length === 0) return '';
+      
+      const maxVal = Math.max(...data, 1);
+      const width = 100;
+      const pointWidth = width / (data.length - 1 || 1);
+      
+      let points = data.map((val, i) => {
+        const x = i * pointWidth;
+        const y = height - (val / maxVal) * (height - 4);
+        return `${x},${y}`;
+      }).join(' ');
+
+      return `<svg viewBox="0 0 ${width} ${height}" class="sparkline-chart" xmlns="http://www.w3.org/2000/svg">
+        <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="${points} ${width},${height} 0,${height}" fill="url(#gradient)" opacity="0.2"/>
+        <defs>
+          <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:${color};stop-opacity:0.3" />
+            <stop offset="100%" style="stop-color:${color};stop-opacity:0" />
+          </linearGradient>
+        </defs>
+      </svg>`;
+    }
 
     const topCategories = computed(() => {
       const categoryTotals = {};
@@ -281,6 +421,109 @@ const app = createApp({
       contextMenu.visible = false;
     }
 
+    // ==================== Phase 1: AI Insights ====================
+    async function fetchAIInsight() {
+      if (!settings.value.llmEndpoint) return;
+      
+      aiInsightLoading.value = true;
+      try {
+        const topCats = topCategories.value;
+        const totalExpenses = monthlyExpenses.value;
+        const expenseDelta = monthlyDelta.value.expenses.delta;
+
+        const prompt = `Based on this month's spending data, provide a brief 1-sentence AI insight about spending patterns:
+- Total expenses: ${formatCurrency(totalExpenses)}
+- Top categories: ${topCats.map(c => `${c.emoji} ${c.name}: ${formatCurrency(c.total)}`).join(', ')}
+- Month-over-month change: ${expenseDelta > 0 ? '+' : ''}${expenseDelta.toFixed(1)}%
+
+Keep it concise and actionable.`;
+
+        const result = await window.AI.runAI(
+          [{ role: 'user', content: prompt }],
+          {
+            endpoint: settings.value.llmEndpoint,
+            apiKey: settings.value.apiKey,
+            model: 'gpt-4-mini',
+            temperature: 0.7,
+            onDone: () => {},
+          }
+        );
+
+        if (result) {
+          aiInsight.value = result.trim();
+        }
+      } catch (err) {
+        console.error('Failed to fetch AI insight:', err);
+      } finally {
+        aiInsightLoading.value = false;
+      }
+    }
+
+    // ==================== Phase 1: Real-time Category Prediction ====================
+    async function predictCategories() {
+      if (!quickAdd.description.trim() || !settings.value.llmEndpoint) {
+        predictedCategories.value = [];
+        return;
+      }
+
+      categoryPredictionLoading.value = true;
+      
+      // Cancel previous request if still running
+      if (categoryPredictionAbortController) {
+        categoryPredictionAbortController.abort();
+      }
+      categoryPredictionAbortController = new AbortController();
+
+      try {
+        const categoryList = categories.value.map(c => `${c.id}: ${c.emoji} ${c.name}`).join('\n');
+        const prompt = `Given this transaction description: "${quickAdd.description}"
+
+Categorize it by selecting the TOP 3 most likely categories from this list:
+${categoryList}
+
+Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat-groceries", "cat-shopping", "cat-dining"]`;
+
+        const result = await window.AI.runAI(
+          [{ role: 'user', content: prompt }],
+          {
+            endpoint: settings.value.llmEndpoint,
+            apiKey: settings.value.apiKey,
+            model: 'gpt-4-mini',
+            temperature: 0.3,
+            signal: categoryPredictionAbortController.signal,
+            onDone: () => {},
+          }
+        );
+
+        if (result) {
+          try {
+            // Extract JSON array from response
+            const jsonMatch = result.match(/\[.*?\]/s);
+            const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+            predictedCategories.value = parsed.slice(0, 3);
+          } catch (e) {
+            console.error('Failed to parse category predictions:', e);
+            predictedCategories.value = [];
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Failed to predict categories:', err);
+        }
+      } finally {
+        categoryPredictionLoading.value = false;
+      }
+    }
+
+    // Debounce category prediction on description change
+    let categoryPredictionTimer = null;
+    watch(() => quickAdd.description, () => {
+      clearTimeout(categoryPredictionTimer);
+      categoryPredictionTimer = setTimeout(() => {
+        predictCategories();
+      }, 500);
+    });
+
     // ==================== Transaction Management ====================
     function addTransaction() {
       if (!quickAdd.amount || !quickAdd.category || !quickAdd.account) {
@@ -307,8 +550,12 @@ const app = createApp({
       quickAdd.amount = '';
       quickAdd.description = '';
       quickAdd.date = new Date().toISOString().split('T')[0];
+      predictedCategories.value = [];
       showQuickAddMenu.value = false;
       showNotification('Transaction added!');
+      
+      // Refresh AI insight
+      fetchAIInsight();
     }
 
     function addReceiptTransaction(repeat = false) {
@@ -341,6 +588,9 @@ const app = createApp({
         showQuickAddMenu.value = false;
         showNotification('Receipt added!');
       }
+      
+      // Refresh AI insight
+      fetchAIInsight();
     }
 
     function deleteTransaction(id) {
@@ -352,6 +602,9 @@ const app = createApp({
       saveAllData();
       contextMenu.visible = false;
       showNotification('Transaction deleted');
+      
+      // Refresh AI insight
+      fetchAIInsight();
     }
 
     function editTransaction(txn) {
@@ -369,6 +622,9 @@ const app = createApp({
       saveAllData();
       contextMenu.visible = false;
       showNotification('Transaction duplicated');
+      
+      // Refresh AI insight
+      fetchAIInsight();
     }
 
     function updateAccountBalance(accountId, amount, isExpense, isReverse = false) {
@@ -461,6 +717,8 @@ const app = createApp({
         if (mainOk && visionOk) {
           aiEndpointStatus.value = 'ok';
           showNotification('Connections successful!');
+          // Refresh AI insight if connection now works
+          await fetchAIInsight();
         } else {
           aiEndpointStatus.value = 'error';
           showNotification('Connection failed');
@@ -501,6 +759,7 @@ const app = createApp({
         budgets.value = initializeBudgets();
         goals.value = [];
         saveAllData();
+        aiInsight.value = null;
         showNotification('All data cleared');
       }
     }
@@ -571,6 +830,12 @@ const app = createApp({
       quickAdd,
       aiEndpointStatus,
 
+      // Phase 1: State
+      aiInsight,
+      aiInsightLoading,
+      predictedCategories,
+      categoryPredictionLoading,
+
       // Data
       accounts,
       transactions,
@@ -584,6 +849,8 @@ const app = createApp({
       monthlyIncome,
       monthlyExpenses,
       netWorth,
+      monthlyDelta,
+      sparklineData,
       topCategories,
       recentTransactions,
       filteredTransactions,
@@ -596,6 +863,7 @@ const app = createApp({
       formatDate,
       showNotification,
       hideModals,
+      generateSparklineSVG,
       addTransaction,
       addReceiptTransaction,
       deleteTransaction,
@@ -611,6 +879,7 @@ const app = createApp({
       previousMonth,
       nextMonth,
       getProgressOffset,
+      fetchAIInsight,
     };
   },
 });
