@@ -968,54 +968,158 @@ input[type="number"] {
   margin: 0;
 }
 
-/* ── BOTTOM NAVIGATION ──────────────────────────────────– */
+/* ── NAVIGATION SYSTEM ──────────────────────────────────– */
+
+.nav-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: max-content;
+}
+
+.desktop-nav-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+  color: var(--white);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform var(--transition), border-color var(--transition), background var(--transition), box-shadow var(--transition);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.nav-primary-action:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255,255,255,0.18);
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.08));
+}
+
+.app-tabbar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.app-tabbar-desktop {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0.25rem;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.025);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+.app-tabbar-desktop::-webkit-scrollbar,
+.app-tabbar-mobile::-webkit-scrollbar {
+  display: none;
+}
+
+.app-tabbar-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 0.72rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+
+.app-tabbar-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+}
+
+.app-tabbar-btn.active {
+  color: var(--white);
+  border-color: rgba(255,255,255,0.1);
+  background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.app-tabbar-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.app-tabbar-label {
+  white-space: nowrap;
+}
+
+.app-tabbar-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--white);
+  background: rgba(239, 68, 68, 0.9);
+  box-shadow: 0 0 0 3px var(--bg);
+}
 
 .bottom-nav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: var(--bg);
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  z-index: 50;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(100% - 20px, 900px);
+  padding: 0.45rem;
+  overflow-x: auto;
+  z-index: 60;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background: rgba(8, 8, 8, 0.92);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }
 
-.nav-btn {
-  flex: 1;
-  height: 100%;
-  display: flex;
+.app-tabbar-mobile {
+  gap: 0.35rem;
+}
+
+.app-tabbar-mobile .app-tabbar-btn {
+  min-width: 76px;
+  min-height: 54px;
+  padding: 0.45rem 0.6rem;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: 0.65rem;
-  transition: color var(--transition);
+  gap: 0.22rem;
+  font-size: 0.62rem;
 }
 
-.nav-btn:hover {
-  color: var(--text);
-}
-
-.nav-btn.active {
-  color: var(--white);
-}
-
-.nav-icon {
-  font-size: 1.3rem;
-}
-
-.nav-label {
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.app-tabbar-mobile .app-tabbar-icon {
+  font-size: 1rem;
 }
 
 /* ── FAB (Floating Action Button) ────────────────────────– */

@@ -20,14 +20,24 @@
 </head>
 <body>
 
-<nav id="nav">
-  <div class="nav-inner">
-    <a href="#" class="nav-logo">NIGHT LEDGER</a>
-    <span class="nav-title">Financial Intelligence</span>
-  </div>
-</nav>
-
 <div id="app" class="app-container" @keydown.escape.window="hideModals">
+  <nav id="nav">
+    <div class="nav-inner">
+      <div class="nav-brand">
+        <a href="#" class="nav-logo">NIGHT LEDGER</a>
+        <span class="nav-title">Financial Intelligence</span>
+      </div>
+      <nav-tabs
+        class="desktop-nav-wrap"
+        :tabs="navTabs"
+        :active-tab="activeTab"
+        :badge-map="navBadgeMap"
+        variant="desktop"
+        @select="setActiveTab"
+      ></nav-tabs>
+      <button v-if="canQuickAdd" class="nav-primary-action" @click="openQuickAdd()">+ Add Transaction</button>
+    </div>
+  </nav>
   <!-- Toast notifications -->
   <div class="toast" :class="{ visible: notification && notification.trim() }">{{ notification }}</div>
 
@@ -840,103 +850,39 @@
     </div>
   </div>
 
-  <!-- Bottom navigation -->
-  <nav class="bottom-nav">
-    <button :class="['nav-btn', { active: activeTab === 'dashboard' }]"
-            @click="activeTab = 'dashboard'"
-            title="Dashboard">
-      <span class="nav-icon">⊟</span>
-      <span class="nav-label">Dashboard</span>
-    </button>
-    <button :class="['nav-btn', { active: activeTab === 'transactions' }]"
-            @click="activeTab = 'transactions'"
-            title="Transactions">
-      <span class="nav-icon">≣</span>
-      <span v-if="activeFilterCount > 0 && activeTab === 'transactions'" class="nav-badge">{{ activeFilterCount }}</span>
-      <span class="nav-label">Txn</span>
-    </button>
-    <button :class="['nav-btn', { active: activeTab === 'budget' }]"
-            @click="activeTab = 'budget'"
-            title="Budget">
-      <span class="nav-icon">▮▮▮</span>
-      <span class="nav-label">Budget</span>
-    </button>
-    <button :class="['nav-btn', { active: activeTab === 'goals' }]"
-            @click="activeTab = 'goals'"
-            title="Goals">
-      <span class="nav-icon">◎</span>
-      <span class="nav-label">Goals</span>
-    </button>
-    <!-- Phase 9: Bills Tab -->
-    <button :class="['nav-btn', { active: activeTab === 'bills' }]"
-            @click="activeTab = 'bills'"
-            title="Bills">
-      <span class="nav-icon" v-if="dueAlerts.hasAlerts" style="color: #ef4444;">📋</span>
-      <span class="nav-icon" v-else>📋</span>
-      <span v-if="dueAlerts.overdue.length > 0" class="nav-badge" style="background: #ef4444;">{{ dueAlerts.overdue.length }}</span>
-      <span class="nav-label">Bills</span>
-    </button>
-    <!-- Phase 10: Reports Tab -->
-    <button :class="['nav-btn', { active: activeTab === 'reports' }]"
-            @click="activeTab = 'reports'"
-            title="Reports">
-      <span class="nav-icon">📄</span>
-      <span class="nav-label">Reports</span>
-    </button>
-    <button :class="['nav-btn', { active: activeTab === 'analytics' }]"
-            @click="activeTab = 'analytics'"
-            title="Intelligence">
-      <span class="nav-icon">📊</span>
-      <span class="nav-label">Intel</span>
-    </button>
-    <button :class="['nav-btn', { active: activeTab === 'accounts' }]"
-            @click="activeTab = 'accounts'"
-            title="Accounts">
-      <span class="nav-icon">🏦</span>
-      <span class="nav-label">Accounts</span>
-    </button>
-    <!-- Phase 11: Receipt Gallery Tab -->
-    <button :class="['nav-btn', { active: activeTab === 'gallery' }]"
-            @click="activeTab = 'gallery'"
-            title="Receipt Gallery">
-      <span class="nav-icon">📸</span>
-      <span v-if="receiptCount > 0" class="nav-badge">{{ receiptCount }}</span>
-      <span class="nav-label">Gallery</span>
-    </button>
-    <button :class="['nav-btn', { active: activeTab === 'settings' }]"
-            @click="activeTab = 'settings'"
-            title="Settings">
-      <span class="nav-icon">⚙</span>
-      <span class="nav-label">Config</span>
-    </button>
-  </nav>
+  <!-- Mobile bottom navigation -->
+  <nav-tabs
+    class="bottom-nav"
+    :tabs="navTabs"
+    :active-tab="activeTab"
+    :badge-map="navBadgeMap"
+    variant="mobile"
+    @select="setActiveTab"
+  ></nav-tabs>
 
   <!-- Floating action button -->
-  <button v-if="activeTab === 'dashboard' || activeTab === 'transactions'" 
-          class="fab" 
-          @click="showQuickAddMenu = true"
+  <button v-if="canQuickAdd"
+          class="fab"
+          @click="openQuickAdd()"
           title="Quick add transaction">
     +
   </button>
 
   <!-- Quick add menu -->
-  <div v-if="showQuickAddMenu" class="modal-overlay" @click.self="showQuickAddMenu = false">
-    <div class="bottom-sheet">
-      <div class="sheet-header">
-        <h2>Add Transaction</h2>
-        <button class="btn-close" @click="showQuickAddMenu = false">×</button>
+  <div v-if="showQuickAddMenu" class="modal-overlay modal-overlay-transaction" @click.self="closeQuickAdd">
+    <div class="transaction-shell bottom-sheet">
+      <div class="sheet-header modal-shell-header">
+        <div>
+          <div class="modal-shell-kicker">Transaction Intake</div>
+          <h2>Add Transaction</h2>
+        </div>
+        <button class="btn-close" @click="closeQuickAdd">×</button>
       </div>
-      <div class="sheet-tabs">
-        <button :class="['sheet-tab', { active: quickAddMode === 'manual' }]" @click="quickAddMode = 'manual'">
-          ✓ Manual
-        </button>
-        <button :class="['sheet-tab', { active: quickAddMode === 'receipt' }]" @click="quickAddMode = 'receipt'">
-          📷 Receipt
-        </button>
-        <button :class="['sheet-tab', { active: quickAddMode === 'natural' }]" @click="quickAddMode = 'natural'">
-          💬 Natural
-        </button>
-      </div>
+      <mode-tabs
+        :modes="quickAddModes"
+        :active-mode="quickAddMode"
+        @select="setQuickAddMode"
+      ></mode-tabs>
       <div class="sheet-content">
         <!-- Manual entry -->
         <div v-show="quickAddMode === 'manual'" class="form-section">
@@ -1055,7 +1001,7 @@
             </select>
           </div>
           <div class="sheet-footer">
-            <button @click="showQuickAddMenu = false" class="btn-secondary">Cancel</button>
+            <button @click="closeQuickAdd" class="btn-secondary">Cancel</button>
             <button @click="addTransaction" class="btn-primary btn-full">{{ quickAdd.isRecurring ? 'Add Recurring' : (quickAdd.type === 'income' ? 'Add Income' : 'Add Expense') }}</button>
           </div>
         </div>
@@ -2268,6 +2214,7 @@
 <script src="js/ai.js"></script>
 <script src="js/receipt-parser.js"></script>
 <script src="js/category-customizer.js"></script>
+<script src="js/ui-shell.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

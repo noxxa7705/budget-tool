@@ -1,6 +1,7 @@
 const { createApp, ref, reactive, computed, watch, onMounted, onBeforeUnmount } = Vue;
 
 const app = createApp({
+  components: window.NightLedgerUI?.components || {},
   setup() {
     // ==================== State ====================
     const activeTab = ref('dashboard');
@@ -42,6 +43,32 @@ const app = createApp({
       tags: [],
       tagsInput: '',
     });
+
+    const navTabs = window.NightLedgerUI?.NAV_TABS || [];
+    const quickAddModes = window.NightLedgerUI?.QUICK_ADD_MODES || [];
+    const canQuickAdd = computed(() => ['dashboard', 'transactions'].includes(activeTab.value));
+    const navBadgeMap = computed(() => ({
+      transactions: activeTab.value === 'transactions' && Number(activeFilterCount?.value || 0) > 0 ? String(activeFilterCount.value) : '',
+      bills: Number(dueAlerts?.value?.overdue?.length || 0) > 0 ? String(dueAlerts.value.overdue.length) : '',
+      gallery: Number(receiptCount?.value || 0) > 0 ? String(receiptCount.value) : '',
+    }));
+
+    function setActiveTab(tabId) {
+      activeTab.value = tabId;
+    }
+
+    function setQuickAddMode(modeId) {
+      quickAddMode.value = modeId;
+    }
+
+    function openQuickAdd(modeId = 'manual') {
+      quickAddMode.value = modeId;
+      showQuickAddMenu.value = true;
+    }
+
+    function closeQuickAdd() {
+      showQuickAddMenu.value = false;
+    }
 
     // ==================== Phase 4: Undo/Redo State ====================
     const actionHistory = ref([]);
@@ -3622,6 +3649,10 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       groupedTransactions,
       tabIcons,
       tabLabels,
+      navTabs,
+      navBadgeMap,
+      quickAddModes,
+      canQuickAdd,
 
       // Functions
       formatCurrency,
@@ -3630,6 +3661,10 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       formatDate,
       showNotification,
       hideModals,
+      setActiveTab,
+      setQuickAddMode,
+      openQuickAdd,
+      closeQuickAdd,
       generateSparklineSVG,
       generateTrendChartSVG,
       generateRecurringTransactions,
