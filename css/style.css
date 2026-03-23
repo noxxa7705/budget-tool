@@ -3669,3 +3669,283 @@ input[type="number"] {
   }
 }
 
+/* ============================================================
+   PHASE 13: TRANSACTION ENHANCEMENTS STYLES
+   ============================================================ */
+
+/* Enhanced Edit Form Styling */
+.phase13-edit-form {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+.phase13-edit-form .form-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+.phase13-edit-form .form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: var(--spacing-sm);
+  color: var(--text);
+}
+
+.phase13-edit-form input[type="checkbox"] {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+/* Split Items Container */
+.split-items-container {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.split-item {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  align-items: center;
+}
+
+.split-item .text-input {
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Attachment Container */
+.attachment-container {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.attachment-container input[type="file"] {
+  display: none;
+}
+
+.attachments-preview {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.attachment-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-2);
+  border-radius: var(--r-sm);
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.attachment-item:last-child {
+  margin-bottom: 0;
+}
+
+/* OCR Correction Fields */
+.ocr-fields {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.ocr-fields .form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.ocr-fields .form-group:last-child {
+  margin-bottom: 0;
+}
+
+/* Templates List */
+.templates-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.template-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: all var(--transition);
+}
+
+.template-item:hover {
+  background: var(--bg-2);
+  border-color: var(--border-focus);
+}
+
+.template-info {
+  flex: 1;
+}
+
+.template-name {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.template-meta {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.template-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* Bulk Edit Options */
+.bulk-edit-options {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.bulk-edit-options .form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.bulk-edit-options .form-group:last-child {
+  margin-bottom: 0;
+}
+
+/* Duplicates List */
+.duplicates-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.duplicate-group {
+  background: var(--bg-3);
+  border: 2px solid var(--warn);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.duplicate-group-header {
+  background: var(--bg-2);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.similarity-badge {
+  background: var(--warn);
+  color: var(--bg);
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.duplicate-items {
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.duplicate-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: var(--bg-2);
+  border-radius: var(--r-sm);
+  border-left: 3px solid var(--warn);
+}
+
+.duplicate-details {
+  flex: 1;
+}
+
+.duplicate-actions {
+  margin-left: var(--spacing-md);
+}
+
+/* Responsive Adjustments for Phase 13 */
+@media (max-width: 768px) {
+  .phase13-edit-form {
+    padding: var(--spacing-md);
+  }
+
+  .split-item {
+    grid-template-columns: 1fr;
+  }
+
+  .split-item .btn-danger {
+    justify-self: flex-start;
+  }
+
+  .template-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .template-actions {
+    width: 100%;
+    margin-top: var(--spacing-sm);
+  }
+
+  .template-actions .btn-primary,
+  .template-actions .btn-danger {
+    flex: 1;
+  }
+
+  .duplicate-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .duplicate-actions {
+    width: 100%;
+    margin-top: var(--spacing-sm);
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .phase13-edit-form .form-group {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .split-items-container,
+  .ocr-fields,
+  .bulk-edit-options {
+    padding: var(--spacing-sm);
+  }
+
+  .attachment-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .attachment-item button {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+}
+

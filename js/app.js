@@ -167,15 +167,41 @@ const app = createApp({
       { id: 'src-other-income', name: 'Other Income', emoji: '🔄' },
     ]);
 
-    let bills = ref([]);
-    let showBillsModal = ref(false);
-    let billEditingId = ref(null);
-    let newBill = reactive({
-      description: '',
-      amount: '',
-      dueDate: '',
-      status: 'unpaid',
-      notes: '',
+    let bills = ref([]);\n    let showBillsModal = ref(false);\n    let billEditingId = ref(null);\n    let newBill = reactive({\n      description: '',\n      amount: '',\n      dueDate: '',\n      status: 'unpaid',\n      notes: '',\n    });\n\n    // ==================== Phase 12: Category Customization ====================\n    const showCategoryCustomizer = ref(false);\n    const categoryCustomizerTab = ref('manage');\n    const categorySearchQuery = ref('');\n    const showAddCategoryForm = ref(false);\n    const showEmojiPicker = ref(false);\n    const showColorPicker = ref(false);\n    const showEditColorPicker = ref(false);\n    const showEditCategoryModal = ref(false);\n    const showMergeCategoriesModal = ref(false);\n    const categoryImportInput = ref(null);\n\n    const categoryCustomizerSettings = reactive({\n      hideUnused: false,\n      showSubcategories: true,\n      showStats: true,\n    });\n\n    const newCategoryForm = reactive({\n      name: '',\n      emoji: '📌',\n      color: '#6b7280',\n      parentId: '',\n      aliasesInput: '',\n    });\n\n    const editingCategory = reactive({\n      id: '',\n      name: '',\n      emoji: '',\n      color: '',\n      aliasesEdit: '',\n    });\n\n    const mergeState = reactive({\n      sourceId: '',\n      targetId: '',\n      deleteSource: true,\n    });\n\n    let draggedCategoryIndex = null;\n\n    // ==================== Phase 13: Transaction Enhancements ====================
+    const phase13 = reactive({
+      showEditModal: false,
+      showTemplatesModal: false,
+      showBulkEditModal: false,
+      showDuplicateModal: false,
+      editingTxn: null,
+      templates: [],
+      selectedForBulkEdit: [],
+      potentialDuplicates: [],
+      editForm: {
+        description: '',
+        notes: '',
+        amount: 0,
+        date: new Date().toISOString().split('T')[0],
+        timeOfDay: '12:00',
+        location: '',
+        paymentMethod: '',
+        isSplit: false,
+        splitItems: [],
+        attachments: [],
+        receiptData: null,
+        saveAsTemplate: false,
+        templateName: '',
+      },
+      bulkEditOptions: {
+        updateCategory: false,
+        newCategory: '',
+        updateLocation: false,
+        newLocation: '',
+        updatePaymentMethod: false,
+        newPaymentMethod: '',
+        updateTags: false,
+        tagsToAdd: '',
+      },
     });
 
     // ==================== Initialization ====================
@@ -189,6 +215,8 @@ const app = createApp({
       loadFilterState();
       // Phase 4: Set up keyboard shortcuts
       window.addEventListener('keydown', handleKeyboardShortcuts);
+      // Phase 13: Load templates
+      loadPhase13Templates();
       // Fetch AI insight on mount
       await fetchAIInsight();
     });
@@ -208,6 +236,8 @@ const app = createApp({
       recurringTransactions.value = (await getStorage('recurringTransactions')) || [];
       // Phase 9: Load bills
       bills.value = (await getStorage('bills')) || [];
+      // Phase 13: Load transaction templates and enhancements
+      phase13.templates = (await getStorage('phase13_templates')) || [];
       const storedSettings = (await getStorage('settings')) || {};
       settings.value = { ...settings.value, ...storedSettings };
 
@@ -1536,6 +1566,376 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       contextMenu.visible = true;
     }
 
+    // ==================== Phase 13: Transaction Enhancements ====================
+
+    /**
+     * Feature 1: Multi-line Notes
+     * Feature 2: Attachment Support
+     * Feature 5: Split Transactions
+     * Feature 6: Location Tagging
+     * Feature 7: Payment Method Tracking
+     * Feature 8: OCR Correction
+     * Feature 9: Time-of-Day Tracking
+     * Feature 3: Transaction Templates (save/load)
+     */
+    function editTransactionPhase13(txn) {
+      if (txn) {
+        phase13.editingTxn = txn;
+        phase13.editForm.description = txn.description || '';
+        phase13.editForm.notes = txn.notes || '';
+        phase13.editForm.amount = txn.amount || 0;
+        phase13.editForm.date = txn.date || new Date().toISOString().split('T')[0];
+        phase13.editForm.timeOfDay = txn.timeOfDay || '12:00';
+        phase13.editForm.location = txn.location || '';
+        phase13.editForm.paymentMethod = txn.paymentMethod || '';
+        phase13.editForm.isSplit = txn.isSplit || false;
+        phase13.editForm.splitItems = txn.splitItems ? JSON.parse(JSON.stringify(txn.splitItems)) : [];
+        phase13.editForm.attachments = txn.attachments ? JSON.parse(JSON.stringify(txn.attachments)) : [];
+        phase13.editForm.receiptData = txn.receiptData ? JSON.parse(JSON.stringify(txn.receiptData)) : null;
+        phase13.editForm.saveAsTemplate = false;
+        phase13.editForm.templateName = '';
+      } else {
+        // New transaction form
+        resetPhase13EditForm();
+        phase13.editingTxn = null;
+      }
+      phase13.showEditModal = true;
+      contextMenu.visible = false;
+    }
+
+    function resetPhase13EditForm() {
+      phase13.editForm = {
+        description: '',
+        notes: '',
+        amount: 0,
+        date: new Date().toISOString().split('T')[0],
+        timeOfDay: '12:00',
+        location: '',
+        paymentMethod: '',
+        isSplit: false,
+        splitItems: [],
+        attachments: [],
+        receiptData: null,
+        saveAsTemplate: false,
+        templateName: '',
+      };
+    }
+
+    function addSplitItem() {
+      phase13.editForm.splitItems.push({
+        description: '',
+        amount: 0,
+      });
+    }
+
+    function handleAttachmentUpload(event) {
+      const files = event.target.files;
+      if (!files) return;
+
+      Array.from(files).forEach(file => {
+        // Store file name and size; in production, store base64 data
+        if (!phase13.editForm.attachments) {
+          phase13.editForm.attachments = [];
+        }
+        phase13.editForm.attachments.push({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          // In production: use FileReader to get base64 data
+          // data: base64Data
+        });
+      });
+      showNotification(`Added ${files.length} attachment(s)`);
+    }
+
+    function saveTransactionEdit() {
+      if (!phase13.editForm.description || !phase13.editForm.amount) {
+        showNotification('Please fill in description and amount');
+        return;
+      }
+
+      if (phase13.editingTxn) {
+        // Update existing transaction
+        const idx = transactions.value.findIndex(t => t.id === phase13.editingTxn.id);
+        if (idx >= 0) {
+          const txn = transactions.value[idx];
+          
+          // Update all enhanced fields
+          txn.description = phase13.editForm.description;
+          txn.notes = phase13.editForm.notes; // Feature 1: Multi-line notes
+          txn.location = phase13.editForm.location; // Feature 6: Location tagging
+          txn.paymentMethod = phase13.editForm.paymentMethod; // Feature 7: Payment method
+          txn.timeOfDay = phase13.editForm.timeOfDay; // Feature 9: Time-of-day
+          txn.date = phase13.editForm.date;
+          
+          // Handle amount change
+          const amountDiff = phase13.editForm.amount - txn.amount;
+          txn.amount = phase13.editForm.amount;
+          
+          // Update split if applicable
+          if (phase13.editForm.isSplit) {
+            txn.isSplit = true;
+            txn.splitItems = phase13.editForm.splitItems;
+          } else {
+            txn.isSplit = false;
+            txn.splitItems = [];
+          }
+
+          // Update attachments
+          if (phase13.editForm.attachments && phase13.editForm.attachments.length > 0) {
+            txn.attachments = phase13.editForm.attachments;
+          }
+
+          // Update receipt data if corrected
+          if (phase13.editForm.receiptData) {
+            txn.receiptData = phase13.editForm.receiptData;
+          }
+
+          recordAction('edit_transaction', { txn: JSON.parse(JSON.stringify(txn)) });
+          
+          if (amountDiff !== 0) {
+            updateAccountBalance(txn.account, Math.abs(amountDiff), amountDiff < 0, amountDiff > 0);
+          }
+        }
+        showNotification('Transaction updated');
+      } else {
+        // Create new transaction
+        const txn = {
+          id: 'txn-' + Date.now(),
+          description: phase13.editForm.description,
+          amount: phase13.editForm.amount,
+          date: phase13.editForm.date,
+          type: 'expense',
+          category: quickAdd.category,
+          account: quickAdd.account,
+          notes: phase13.editForm.notes,
+          location: phase13.editForm.location,
+          paymentMethod: phase13.editForm.paymentMethod,
+          timeOfDay: phase13.editForm.timeOfDay,
+          isSplit: phase13.editForm.isSplit,
+          splitItems: phase13.editForm.splitItems,
+          attachments: phase13.editForm.attachments,
+          timestamp: Date.now(),
+        };
+
+        transactions.value.push(txn);
+        updateAccountBalance(quickAdd.account, phase13.editForm.amount, true);
+        recordAction('add_transaction', { txn });
+        showNotification('Transaction added');
+      }
+
+      // Save as template if requested
+      if (phase13.editForm.saveAsTemplate && phase13.editForm.templateName) {
+        saveAsTemplate();
+      }
+
+      saveAllData();
+      phase13.showEditModal = false;
+      resetPhase13EditForm();
+      fetchAIInsight();
+    }
+
+    function loadPhase13Templates() {
+      // Templates are loaded in loadAllData()
+      // This function can be used to refresh or reload templates
+    }
+
+    /**
+     * Feature 3: Transaction Templates
+     * Save current transaction as a reusable template
+     */
+    function saveAsTemplate() {
+      const template = {
+        id: 'tpl-' + Date.now(),
+        name: phase13.editForm.templateName,
+        description: phase13.editForm.description,
+        amount: phase13.editForm.amount,
+        category: quickAdd.category,
+        location: phase13.editForm.location,
+        paymentMethod: phase13.editForm.paymentMethod,
+        notes: phase13.editForm.notes,
+        isSplit: phase13.editForm.isSplit,
+        splitItems: JSON.parse(JSON.stringify(phase13.editForm.splitItems)),
+        createdAt: new Date().toISOString(),
+      };
+      phase13.templates.push(template);
+      saveStorage('phase13_templates', phase13.templates);
+      showNotification(`Template "${phase13.editForm.templateName}" saved`);
+    }
+
+    function applyTemplate(template) {
+      phase13.editForm.description = template.description;
+      phase13.editForm.amount = template.amount;
+      phase13.editForm.location = template.location;
+      phase13.editForm.paymentMethod = template.paymentMethod;
+      phase13.editForm.notes = template.notes;
+      phase13.editForm.isSplit = template.isSplit;
+      phase13.editForm.splitItems = JSON.parse(JSON.stringify(template.splitItems));
+      quickAdd.category = template.category;
+      phase13.showTemplatesModal = false;
+      phase13.showEditModal = true;
+      showNotification(`Applied template: ${template.name}`);
+    }
+
+    function deleteTemplate(id) {
+      phase13.templates = phase13.templates.filter(t => t.id !== id);
+      saveStorage('phase13_templates', phase13.templates);
+      showNotification('Template deleted');
+    }
+
+    /**
+     * Feature 10: Duplicate Detection
+     * Detects potential duplicate transactions based on:
+     * - Similar description
+     * - Similar amount
+     * - Same date or nearby dates
+     */
+    function detectDuplicates() {
+      const duplicateGroups = [];
+      const threshold = 0.7; // 70% similarity required
+
+      for (let i = 0; i < transactions.value.length; i++) {
+        for (let j = i + 1; j < transactions.value.length; j++) {
+          const txn1 = transactions.value[i];
+          const txn2 = transactions.value[j];
+
+          // Calculate similarity
+          const descriptionSimilarity = calculateStringSimilarity(
+            txn1.description.toLowerCase(),
+            txn2.description.toLowerCase()
+          );
+
+          const amountDiff = Math.abs(txn1.amount - txn2.amount);
+          const maxAmount = Math.max(txn1.amount, txn2.amount);
+          const amountSimilarity = 1 - (amountDiff / maxAmount);
+
+          // Check if dates are close (same day or within 1 day)
+          const date1 = new Date(txn1.date);
+          const date2 = new Date(txn2.date);
+          const daysDiff = Math.abs((date1 - date2) / (1000 * 60 * 60 * 24));
+          const dateSimilarity = daysDiff <= 1 ? 1 : 0.5;
+
+          // Weighted similarity
+          const similarity = (descriptionSimilarity * 0.5 + amountSimilarity * 0.4 + dateSimilarity * 0.1);
+
+          if (similarity >= threshold && txn1.id !== txn2.id) {
+            // Check if this pair is already in a group
+            const existingGroup = duplicateGroups.find(
+              g => g.id === txn1.id || g.id === txn2.id
+            );
+
+            if (!existingGroup) {
+              duplicateGroups.push({
+                id: txn1.id,
+                description: txn1.description,
+                similarity: similarity,
+                matches: [txn2],
+              });
+            } else {
+              if (!existingGroup.matches.find(m => m.id === txn2.id)) {
+                existingGroup.matches.push(txn2);
+              }
+            }
+          }
+        }
+      }
+
+      phase13.potentialDuplicates = duplicateGroups;
+      if (duplicateGroups.length > 0) {
+        phase13.showDuplicateModal = true;
+        showNotification(`Found ${duplicateGroups.length} possible duplicates`);
+      } else {
+        showNotification('No duplicates detected');
+      }
+    }
+
+    /**
+     * Helper: Calculate string similarity using Levenshtein distance
+     */
+    function calculateStringSimilarity(str1, str2) {
+      const longer = str1.length > str2.length ? str1 : str2;
+      const shorter = str1.length > str2.length ? str2 : str1;
+
+      if (longer.length === 0) return 1;
+
+      const editDistance = levenshteinDistance(longer, shorter);
+      return (longer.length - editDistance) / longer.length;
+    }
+
+    /**
+     * Helper: Levenshtein distance calculation
+     */
+    function levenshteinDistance(str1, str2) {
+      const matrix = [];
+
+      for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+      }
+
+      for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+      }
+
+      for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+          if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+            matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j - 1] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j] + 1
+            );
+          }
+        }
+      }
+
+      return matrix[str2.length][str1.length];
+    }
+
+    function markAsDuplicate(txn) {
+      deleteTransaction(txn.id);
+      phase13.potentialDuplicates = phase13.potentialDuplicates.filter(
+        group => group.matches.some(m => m.id !== txn.id)
+      );
+      showNotification('Duplicate transaction deleted');
+    }
+
+    /**
+     * Feature 4: Bulk Edit
+     * Apply changes to multiple selected transactions
+     */
+    function applyBulkEdit() {
+      if (phase13.selectedForBulkEdit.length === 0) {
+        showNotification('No transactions selected');
+        return;
+      }
+
+      phase13.selectedForBulkEdit.forEach(txnId => {
+        const txn = transactions.value.find(t => t.id === txnId);
+        if (!txn) return;
+
+        if (phase13.bulkEditOptions.updateCategory) {
+          txn.category = phase13.bulkEditOptions.newCategory;
+        }
+        if (phase13.bulkEditOptions.updateLocation) {
+          txn.location = phase13.bulkEditOptions.newLocation;
+        }
+        if (phase13.bulkEditOptions.updatePaymentMethod) {
+          txn.paymentMethod = phase13.bulkEditOptions.newPaymentMethod;
+        }
+        if (phase13.bulkEditOptions.updateTags) {
+          const newTags = phase13.bulkEditOptions.tagsToAdd.split(',').map(t => t.trim());
+          txn.tags = txn.tags ? [...new Set([...txn.tags, ...newTags])] : newTags;
+        }
+      });
+
+      saveAllData();
+      phase13.showBulkEditModal = false;
+      phase13.selectedForBulkEdit = [];
+      showNotification(`Updated ${phase13.selectedForBulkEdit.length} transactions`);
+    }
+
     // ==================== Phase 9: Bill Management ====================
     function addBill() {
       if (!newBill.description || !newBill.amount || !newBill.dueDate) {
@@ -2252,6 +2652,28 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
     });
     const exportPreviewContent = ref('');
 
+    // ==================== PHASE 11: RECEIPT IMAGE GALLERY ====================
+
+    // Phase 11: Receipt Gallery State
+    const receiptGallery = ref([]);
+    const currentReceiptId = ref(null);
+    const showReceiptViewer = ref(false);
+    const receiptViewerZoom = ref(1);
+    const receiptViewerRotation = ref(0);
+    const receiptSearchQuery = ref('');
+    const receiptGalleryPage = ref(1);
+    const receiptsPerPage = 12;
+    const showOCRCorrectionModal = ref(false);
+    const ocrCorrectionData = reactive({
+      receiptId: null,
+      originalText: '',
+      correctedText: '',
+      merchant: '',
+      amount: '',
+      category: '',
+    });
+    const receiptUploadProgress = ref(0);
+
     // Phase 10: Helper to format signed currency
     function formatSignedCurrency(amount) {
       if (amount >= 0) return `+${formatCurrency(amount)}`;
@@ -2895,6 +3317,45 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       downloadFullDataJSON,
       exportTransactionsCSV,
       formatSignedCurrency,
+
+      // Phase 11: Receipt Gallery
+      receiptGallery,
+      currentReceiptId,
+      showReceiptViewer,
+      receiptViewerZoom,
+      receiptViewerRotation,
+      receiptSearchQuery,
+      receiptGalleryPage,
+      receiptsPerPage,
+      showOCRCorrectionModal,
+      ocrCorrectionData,
+      receiptUploadProgress,
+      receiptCount,
+      loadReceiptGallery,
+      saveReceiptToGallery,
+      openReceiptViewer,
+      closeReceiptViewer,
+      zoomReceipt,
+      rotateReceipt,
+      resetReceiptTransforms,
+      deleteReceipt,
+      searchReceiptsInGallery,
+      openOCRCorrectionModal,
+      saveOCRCorrection,
+      getTransactionReceipts,
+
+      // Phase 13: Transaction Enhancements
+      phase13,
+      editTransaction: editTransactionPhase13,
+      saveTransactionEdit,
+      addSplitItem,
+      handleAttachmentUpload,
+      loadPhase13Templates,
+      applyTemplate,
+      deleteTemplate,
+      detectDuplicates,
+      markAsDuplicate,
+      applyBulkEdit,
     };
   },
 });

@@ -12,11 +12,12 @@
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/mobile.css">
-  <link rel="stylesheet" href="css/phase7-mobile.css">
-</head>
+  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap\" rel=\"stylesheet\">
+  <link rel=\"stylesheet\" href=\"css/style.css\">
+  <link rel=\"stylesheet\" href=\"css/mobile.css\">
+  <link rel=\"stylesheet\" href=\"css/phase7-mobile.css\">
+  <link rel=\"stylesheet\" href=\"css/phase12-category-customizer.css\">
+</head>\n<body>
 <body>
 
 <nav id="nav">
@@ -894,6 +895,14 @@
       <span class="nav-icon">🏦</span>
       <span class="nav-label">Accounts</span>
     </button>
+    <!-- Phase 11: Receipt Gallery Tab -->
+    <button :class="['nav-btn', { active: activeTab === 'gallery' }]"
+            @click="activeTab = 'gallery'"
+            title="Receipt Gallery">
+      <span class="nav-icon">📸</span>
+      <span v-if="receiptCount > 0" class="nav-badge">{{ receiptCount }}</span>
+      <span class="nav-label">Gallery</span>
+    </button>
     <button :class="['nav-btn', { active: activeTab === 'settings' }]"
             @click="activeTab = 'settings'"
             title="Settings">
@@ -1573,18 +1582,409 @@
     </div>
   </div>
 
+  <!-- Phase 11: Receipt Gallery Tab -->
+  <div v-show="activeTab === 'gallery'" class="tab-content">
+    <div class="receipt-gallery-view">
+      <div class="gallery-header">
+        <h2 class="section-title">📸 Receipt Gallery</h2>
+        <div class="gallery-stats">
+          <span class="stat-item">📦 {{ receiptCount }} receipt{{ receiptCount !== 1 ? 's' : '' }}</span>
+        </div>
+      </div>
+
+      <!-- Search and filter -->
+      <div class="gallery-search">
+        <input v-model="receiptSearchQuery" 
+               @input="searchReceiptsInGallery(receiptSearchQuery)"
+               type="text" 
+               placeholder="Search receipts by merchant, amount, or text..." 
+               class="text-input">
+        <button @click="loadReceiptGallery" class="btn-secondary" title="Refresh gallery">🔄</button>
+      </div>
+
+      <!-- Receipt upload progress -->
+      <div v-if="receiptUploadProgress > 0" class="progress-bar">
+        <div class="progress-fill" :style="{ width: receiptUploadProgress + '%' }"></div>
+        <span class="progress-text">{{ receiptUploadProgress }}%</span>
+      </div>
+
+      <!-- Thumbnail Gallery -->
+      <div class="receipt-thumbnail-grid">
+        <div v-if="receiptGallery.length === 0" class="empty-state">
+          <div class="empty-icon">📷</div>
+          <h3>No Receipts Yet</h3>
+          <p>Take or upload receipt photos to start building your receipt library</p>
+        </div>
+        <div v-for="receipt in receiptGallery" :key="receipt.id" class="receipt-thumbnail-card">
+          <div class="receipt-thumbnail-image">
+            <img :src="receipt.thumbnail || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 150 150%22%3E%3Crect fill=%22%23222%22 width=%22150%22 height=%22150%22/%3E%3Ctext x=%2275%22 y=%2275%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23666%22 font-size=%2240%22%3E📄%3C/text%3E%3C/svg%3E'" 
+                 :alt="receipt.merchant || 'Receipt'" 
+                 @click="openReceiptViewer(receipt.id)">
+            <div class="receipt-thumbnail-overlay">
+              <button @click="openReceiptViewer(receipt.id)" class="btn-icon" title="View">👁</button>
+              <button @click="openOCRCorrectionModal(receipt.id)" class="btn-icon" title="Edit OCR">✏️</button>
+              <button @click="deleteReceipt(receipt.id)" class="btn-icon" title="Delete">🗑</button>
+            </div>
+          </div>
+          <div class="receipt-thumbnail-info">
+            <div class="receipt-merchant">{{ receipt.merchant || 'Unknown' }}</div>
+            <div class="receipt-amount">${{ receipt.amount?.toFixed(2) || '0.00' }}</div>
+            <div class="receipt-date">{{ formatDate(receipt.timestamp) }}</div>
+            <div v-if="receipt.verified" class="receipt-verified">✓ Verified</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="receiptGallery.length > receiptsPerPage" class="pagination">
+        <button @click="receiptGalleryPage = Math.max(1, receiptGalleryPage - 1)" 
+                :disabled="receiptGalleryPage <= 1"
+                class="btn-secondary btn-sm">← Previous</button>
+        <span class="pagination-info">Page {{ receiptGalleryPage }} of {{ Math.ceil(receiptGallery.length / receiptsPerPage) }}</span>
+        <button @click="receiptGalleryPage = Math.min(Math.ceil(receiptGallery.length / receiptsPerPage), receiptGalleryPage + 1)"
+                :disabled="receiptGalleryPage >= Math.ceil(receiptGallery.length / receiptsPerPage)"
+                class="btn-secondary btn-sm">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 11: Receipt Viewer Modal -->
+  <div v-if="showReceiptViewer && currentReceiptId" class="receipt-viewer-modal" @click.self="closeReceiptViewer">
+    <div class="receipt-viewer-container">
+      <div class="receipt-viewer-header">
+        <button @click="closeReceiptViewer" class="btn-close" title="Close">✕</button>
+        <div class="receipt-viewer-title">Receipt Viewer</div>
+        <div class="receipt-viewer-tools">
+          <button @click="rotateReceipt(-90)" class="btn-icon" title="Rotate left">↺</button>
+          <button @click="zoomReceipt('out')" class="btn-icon" title="Zoom out">−</button>
+          <span class="zoom-level">{{ (receiptViewerZoom * 100).toFixed(0) }}%</span>
+          <button @click="zoomReceipt('in')" class="btn-icon" title="Zoom in">+</button>
+          <button @click="rotateReceipt(90)" class="btn-icon" title="Rotate right">↻</button>
+          <button @click="resetReceiptTransforms" class="btn-icon" title="Reset">↔</button>
+        </div>
+      </div>
+      <div class="receipt-viewer-content">
+        <div class="receipt-image-container" :style="{ transform: `scale(${receiptViewerZoom}) rotate(${receiptViewerRotation}deg)` }">
+          <!-- Image will be loaded here -->
+          <div class="receipt-placeholder">📄 Loading receipt...</div>
+        </div>
+      </div>
+      <div class="receipt-viewer-footer">
+        <button @click="openOCRCorrectionModal(currentReceiptId)" class="btn-secondary">✏️ Edit OCR</button>
+        <button @click="deleteReceipt(currentReceiptId)" class="btn-danger">🗑 Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 11: OCR Correction Modal -->
+  <div v-if="showOCRCorrectionModal" class="modal-overlay" @click.self="showOCRCorrectionModal = false">
+    <div class="modal-dialog modal-large">
+      <div class="modal-header">
+        <h2>✏️ Correct Receipt Data</h2>
+        <button class="btn-close" @click="showOCRCorrectionModal = false">×</button>
+      </div>
+      <div class="form-section">
+        <div class="form-group">
+          <label>Merchant Name</label>
+          <input v-model="ocrCorrectionData.merchant" type="text" class="text-input" placeholder="Store or merchant name">
+        </div>
+
+        <div class="form-group">
+          <label>Amount</label>
+          <input v-model="ocrCorrectionData.amount" type="number" class="text-input" step="0.01" placeholder="Receipt amount">
+        </div>
+
+        <div class="form-group">
+          <label>Category</label>
+          <select v-model="ocrCorrectionData.category" class="text-input">
+            <option value="">Select category</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+              {{ cat.emoji }} {{ cat.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Original OCR Text</label>
+          <textarea v-model="ocrCorrectionData.originalText" class="text-input" readonly placeholder="Original OCR-recognized text"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Corrected OCR Text</label>
+          <textarea v-model="ocrCorrectionData.correctedText" class="text-input" placeholder="Correct the OCR text if needed"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button @click="saveOCRCorrection" class="btn-primary">💾 Save Corrections</button>
+          <button @click="showOCRCorrectionModal = false" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Context menu for transactions -->
-  <div v-if="contextMenu.visible" class="context-menu" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }">
+  <div v-if=\"contextMenu.visible\" class=\"context-menu\" :style=\"{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }\">\n    <button @click=\"editTransaction(contextMenu.txn)\">Edit</button>\n    <button @click=\"deleteTransaction(contextMenu.txn.id)\">Delete</button>\n    <button @click=\"duplicateTransaction(contextMenu.txn)\">Duplicate</button>\n  </div>\n\n  <!-- Phase 12: Category Customization Modal -->\n  <div v-if=\"showCategoryCustomizer\" class=\"modal-overlay\" @click.self=\"showCategoryCustomizer = false\">\n    <div class=\"modal-dialog modal-large\">\n      <div class=\"modal-header\">\n        <h2>📁 Category Customization</h2>\n        <button class=\"btn-close\" @click=\"showCategoryCustomizer = false\">×</button>\n      </div>\n      <div class=\"category-customizer-tabs\">\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'manage' }]\" @click=\"categoryCustomizerTab = 'manage'\">Manage</button>\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'presets' }]\" @click=\"categoryCustomizerTab = 'presets'\">Presets</button>\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'icons' }]\" @click=\"categoryCustomizerTab = 'icons'\">Icons</button>\n        <button :class=\"['tab-btn', { active: categoryCustomizerTab === 'settings' }]\" @click=\"categoryCustomizerTab = 'settings'\">Settings</button>\n      </div>\n\n      <!-- Manage Categories Tab -->\n      <div v-if=\"categoryCustomizerTab === 'manage'\" class=\"category-customizer-content\">\n        <div class=\"category-list-customizer\">\n          <div class=\"category-customizer-toolbar\">\n            <input v-model=\"categorySearchQuery\" type=\"text\" placeholder=\"Search categories...\" class=\"text-input\" style=\"flex: 1;\">\n            <button @click=\"showAddCategoryForm = !showAddCategoryForm\" class=\"btn-primary btn-sm\">+ Add Category</button>\n          </div>\n\n          <!-- Add Category Form -->\n          <div v-if=\"showAddCategoryForm\" class=\"add-category-form\">\n            <div class=\"form-group\">\n              <label>Category Name</label>\n              <input v-model=\"newCategoryForm.name\" type=\"text\" placeholder=\"e.g., Coffee\" class=\"text-input\">\n            </div>\n            <div class=\"form-group\">\n              <label>Icon/Emoji</label>\n              <div class=\"emoji-input-row\">\n                <input v-model=\"newCategoryForm.emoji\" type=\"text\" placeholder=\"Select or paste emoji\" class=\"text-input emoji-input\">\n                <button @click=\"showEmojiPicker = !showEmojiPicker\" class=\"btn-secondary btn-sm\">Pick</button>\n              </div>\n            </div>\n            <div class=\"form-group\">\n              <label>Color</label>\n              <div class=\"color-picker-row\">\n                <div class=\"color-display\" :style=\"{ backgroundColor: newCategoryForm.color }\" @click=\"showColorPicker = !showColorPicker\"></div>\n                <input v-model=\"newCategoryForm.color\" type=\"text\" placeholder=\"#4ade80\" class=\"text-input color-input\">\n                <div v-if=\"showColorPicker\" class=\"color-picker-grid\">\n                  <div v-for=\"color in ColorCustomizer.colorPresets\" :key=\"color\" \n                       class=\"color-preset\" :style=\"{ backgroundColor: color }\" \n                       @click=\"newCategoryForm.color = color; showColorPicker = false;\"></div>\n                </div>\n              </div>\n            </div>\n            <div class=\"form-group\">\n              <label>Parent Category (for sub-categories)</label>\n              <select v-model=\"newCategoryForm.parentId\" class=\"select-input\">\n                <option value=\"\">None (Top-level)</option>\n                <option v-for=\"cat in categories.filter(c => !c.parentId)\" :key=\"cat.id\" :value=\"cat.id\">\n                  {{ cat.emoji }} {{ cat.name }}\n                </option>\n              </select>\n            </div>\n            <div class=\"form-group\">\n              <label>Aliases (comma-separated)</label>\n              <input v-model=\"newCategoryForm.aliasesInput\" type=\"text\" placeholder=\"e.g., Espresso, Latte, Cappuccino\" class=\"text-input\">\n            </div>\n            <div class=\"form-footer\">\n              <button @click=\"showAddCategoryForm = false\" class=\"btn-secondary btn-sm\">Cancel</button>\n              <button @click=\"addNewCategory()\" class=\"btn-primary btn-sm\">Create Category</button>\n            </div>\n          </div>\n\n          <!-- Categories List (Draggable) -->\n          <div class=\"categories-drag-list\" @dragover.prevent @drop.prevent=\"handleCategoryDrop\">\n            <div v-for=\"(cat, idx) in filteredCategoriesForCustomizer\" :key=\"cat.id\" \n                 class=\"category-item-customizer\" draggable=\"true\"\n                 @dragstart=\"handleCategoryDragStart($event, idx)\"\n                 @dragend=\"handleCategoryDragEnd\"\n                 :class=\"{ hidden: cat.isHidden }\">\n              <div class=\"drag-handle\">⋮⋮</div>\n              <div class=\"category-display\" :style=\"{ backgroundColor: cat.color }\">{{ cat.emoji }}</div>\n              <div class=\"category-info\">\n                <div class=\"category-name\">{{ cat.name }}</div>\n                <div class=\"category-meta\">{{ getCategoryStats(cat, transactions).totalTransactions }} uses</div>\n                <div v-if=\"cat.aliases.length > 0\" class=\"category-aliases\">Aliases: {{ cat.aliases.join(', ') }}</div>\n              </div>\n              <div class=\"category-actions\">\n                <button @click=\"editCategoryModal(cat)\" class=\"btn-icon-small\" title=\"Edit\">✎</button>\n                <button @click=\"showDeleteCategoryConfirm(cat)\" class=\"btn-icon-small danger\" title=\"Delete\">✕</button>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Presets Tab -->\n      <div v-if=\"categoryCustomizerTab === 'presets'\" class=\"category-customizer-content\">\n        <div class=\"presets-grid\">\n          <div class=\"preset-card\">\n            <h4>Minimal Setup</h4>\n            <p class=\"text-muted\">6 essential categories for basic budgeting</p>\n            <div class=\"preset-preview\">\n              <div v-for=\"cat in CategoryCustomizer.categoryPresets.minimal\" :key=\"cat.name\" class=\"preset-cat\">\n                <span :style=\"{ color: cat.color }\">{{ cat.emoji }}</span>\n                <span>{{ cat.name }}</span>\n              </div>\n            </div>\n            <button @click=\"applyPreset('minimal')\" class=\"btn-primary btn-full\">Apply Minimal</button>\n          </div>\n\n          <div class=\"preset-card\">\n            <h4>Detailed Setup</h4>\n            <p class=\"text-muted\">13 categories for comprehensive tracking</p>\n            <div class=\"preset-preview\">\n              <div v-for=\"cat in CategoryCustomizer.categoryPresets.detailed\" :key=\"cat.name\" class=\"preset-cat\">\n                <span :style=\"{ color: cat.color }\">{{ cat.emoji }}</span>\n                <span>{{ cat.name }}</span>\n              </div>\n            </div>\n            <button @click=\"applyPreset('detailed')\" class=\"btn-primary btn-full\">Apply Detailed</button>\n          </div>\n\n          <div class=\"preset-card\">\n            <h4>Advanced Setup</h4>\n            <p class=\"text-muted\">20 categories for detailed expense tracking</p>\n            <div class=\"preset-preview\">\n              <div v-for=\"cat in CategoryCustomizer.categoryPresets.advanced\" :key=\"cat.name\" class=\"preset-cat\">\n                <span :style=\"{ color: cat.color }\">{{ cat.emoji }}</span>\n                <span>{{ cat.name }}</span>\n              </div>\n            </div>\n            <button @click=\"applyPreset('advanced')\" class=\"btn-primary btn-full\">Apply Advanced</button>\n          </div>\n        </div>\n      </div>\n\n      <!-- Icons Tab -->\n      <div v-if=\"categoryCustomizerTab === 'icons'\" class=\"category-customizer-content\">\n        <div class=\"icon-library-grid\">\n          <div v-for=\"icon in CategoryCustomizer.iconLibrary\" :key=\"icon.emoji\" \n               class=\"icon-item\" @click=\"selectIconForNewCategory(icon)\">\n            <div class=\"icon-emoji\">{{ icon.emoji }}</div>\n            <div class=\"icon-name\">{{ icon.name }}</div>\n            <div class=\"icon-category\">{{ icon.category }}</div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Settings Tab -->\n      <div v-if=\"categoryCustomizerTab === 'settings'\" class=\"category-customizer-content\">\n        <div class=\"category-settings\">\n          <div class=\"setting-item\">\n            <div class=\"setting-label\">\n              <h4>Hide Unused Categories</h4>\n              <p class=\"text-muted\">Automatically hide categories with no transactions</p>\n            </div>\n            <label class=\"toggle-switch\">\n              <input v-model=\"categoryCustomizerSettings.hideUnused\" type=\"checkbox\">\n              <span class=\"toggle-slider\"></span>\n            </label>\n          </div>\n\n          <div class=\"setting-item\">\n            <div class=\"setting-label\">\n              <h4>Show Sub-categories</h4>\n              <p class=\"text-muted\">Display sub-categories in category lists</p>\n            </div>\n            <label class=\"toggle-switch\">\n              <input v-model=\"categoryCustomizerSettings.showSubcategories\" type=\"checkbox\">\n              <span class=\"toggle-slider\"></span>\n            </label>\n          </div>\n\n          <div class=\"setting-item\">\n            <div class=\"setting-label\">\n              <h4>Category Statistics</h4>\n              <p class=\"text-muted\">Show usage count and last used date</p>\n            </div>\n            <label class=\"toggle-switch\">\n              <input v-model=\"categoryCustomizerSettings.showStats\" type=\"checkbox\">\n              <span class=\"toggle-slider\"></span>\n            </label>\n          </div>\n\n          <div class=\"setting-divider\"></div>\n\n          <div class=\"setting-item action-item\">\n            <h4>Merge Categories</h4>\n            <p class=\"text-muted\">Combine two categories into one</p>\n            <button @click=\"showMergeCategoriesModal = true\" class=\"btn-secondary btn-full\">Open Merge Tool</button>\n          </div>\n\n          <div class=\"setting-item action-item\">\n            <h4>Export Categories</h4>\n            <p class=\"text-muted\">Save your category setup as JSON</p>\n            <button @click=\"exportCategoriesToJSON()\" class=\"btn-secondary btn-full\">Export JSON</button>\n          </div>\n\n          <div class=\"setting-item action-item\">\n            <h4>Import Categories</h4>\n            <p class=\"text-muted\">Load categories from JSON file</p>\n            <input type=\"file\" accept=\".json\" @change=\"importCategoriesFromFile\" style=\"display: none;\" ref=\"categoryImportInput\">\n            <button @click=\"$refs.categoryImportInput.click()\" class=\"btn-secondary btn-full\">Import JSON</button>\n          </div>\n        </div>\n      </div>\n    </div>\n  </div>\n\n  <!-- Phase 12: Edit Category Modal -->\n  <div v-if=\"showEditCategoryModal\" class=\"modal-overlay\" @click.self=\"showEditCategoryModal = false\">\n    <div class=\"modal-dialog\">\n      <div class=\"modal-header\">\n        <h2>Edit Category</h2>\n        <button class=\"btn-close\" @click=\"showEditCategoryModal = false\">×</button>\n      </div>\n      <div class=\"form-section\">\n        <div class=\"form-group\">\n          <label>Category Name</label>\n          <input v-model=\"editingCategory.name\" type=\"text\" class=\"text-input\">\n        </div>\n        <div class=\"form-group\">\n          <label>Icon/Emoji</label>\n          <input v-model=\"editingCategory.emoji\" type=\"text\" class=\"text-input\">\n        </div>\n        <div class=\"form-group\">\n          <label>Color</label>\n          <div class=\"color-picker-row\">\n            <div class=\"color-display\" :style=\"{ backgroundColor: editingCategory.color }\" @click=\"showEditColorPicker = !showEditColorPicker\"></div>\n            <input v-model=\"editingCategory.color\" type=\"text\" class=\"text-input color-input\">\n            <div v-if=\"showEditColorPicker\" class=\"color-picker-grid\">\n              <div v-for=\"color in CategoryCustomizer.colorPresets\" :key=\"color\" \n                   class=\"color-preset\" :style=\"{ backgroundColor: color }\" \n                   @click=\"editingCategory.color = color; showEditColorPicker = false;\"></div>\n            </div>\n          </div>\n        </div>\n        <div class=\"form-group\">\n          <label>Aliases (comma-separated)</label>\n          <input v-model=\"editingCategory.aliasesEdit\" type=\"text\" class=\"text-input\" placeholder=\"Espresso, Latte, Cappuccino\">\n        </div>\n        <div class=\"form-footer\">\n          <button @click=\"showEditCategoryModal = false\" class=\"btn-secondary\">Cancel</button>\n          <button @click=\"saveEditCategory()\" class=\"btn-primary\">Save Changes</button>\n        </div>\n      </div>\n    </div>\n  </div>\n\n  <!-- Phase 12: Merge Categories Modal -->\n  <div v-if=\"showMergeCategoriesModal\" class=\"modal-overlay\" @click.self=\"showMergeCategoriesModal = false\">\n    <div class=\"modal-dialog\">\n      <div class=\"modal-header\">\n        <h2>Merge Categories</h2>\n        <button class=\"btn-close\" @click=\"showMergeCategoriesModal = false\">×</button>\n      </div>\n      <div class=\"form-section\">\n        <p class=\"text-muted\" style=\"margin-bottom: 1rem;\">All transactions from the source category will be moved to the target category.</p>\n        <div class=\"form-group\">\n          <label>Source Category (from)</label>\n          <select v-model=\"mergeState.sourceId\" class=\"select-input\">\n            <option value=\"\">Select source...</option>\n            <option v-for=\"cat in categories\" :key=\"cat.id\" :value=\"cat.id\">{{ cat.emoji }} {{ cat.name }}</option>\n          </select>\n        </div>\n        <div class=\"form-group\">\n          <label>Target Category (to)</label>\n          <select v-model=\"mergeState.targetId\" class=\"select-input\">\n            <option value=\"\">Select target...</option>\n            <option v-for=\"cat in categories\" :key=\"cat.id\" :value=\"cat.id\" :disabled=\"cat.id === mergeState.sourceId\">{{ cat.emoji }} {{ cat.name }}</option>\n          </select>\n        </div>\n        <div v-if=\"mergeState.sourceId && mergeState.targetId\" class=\"merge-preview\">\n          <p class=\"text-muted\">Merge <strong>{{ categories.find(c => c.id === mergeState.sourceId)?.emoji }} {{ categories.find(c => c.id === mergeState.sourceId)?.name }}</strong> into <strong>{{ categories.find(c => c.id === mergeState.targetId)?.emoji }} {{ categories.find(c => c.id === mergeState.targetId)?.name }}</strong></p>\n          <div class=\"merge-checkbox\">\n            <label>\n              <input v-model=\"mergeState.deleteSource\" type=\"checkbox\">\n              Delete source category after merge\n            </label>\n          </div>\n        </div>\n        <div class=\"form-footer\">\n          <button @click=\"showMergeCategoriesModal = false\" class=\"btn-secondary\">Cancel</button>\n          <button @click=\"mergeCategories()\" :disabled=\"!mergeState.sourceId || !mergeState.targetId\" class=\"btn-primary\">Merge Categories</button>\n        </div>\n      </div>\n    </div>\n  </div>\n</div>
     <button @click="editTransaction(contextMenu.txn)">Edit</button>
     <button @click="deleteTransaction(contextMenu.txn.id)">Delete</button>
     <button @click="duplicateTransaction(contextMenu.txn)">Duplicate</button>
   </div>
+
+  <!-- Phase 13: Enhanced Transaction Edit Modal -->
+  <div v-if="phase13.showEditModal" class="modal-overlay" @click.self="phase13.showEditModal = false">
+    <div class="modal-dialog modal-large">
+      <div class="modal-header">
+        <h2>{{ phase13.editingTxn ? 'Edit Transaction' : 'Add Transaction' }}</h2>
+        <button class="btn-close" @click="phase13.showEditModal = false">×</button>
+      </div>
+      <div class="form-section phase13-edit-form">
+        <div class="form-group">
+          <label>Description</label>
+          <input v-model="phase13.editForm.description" type="text" placeholder="Enter description" class="text-input">
+        </div>
+
+        <!-- Feature 1: Multi-line Notes -->
+        <div class="form-group">
+          <label>Notes (Multi-line)</label>
+          <textarea v-model="phase13.editForm.notes" placeholder="Add detailed notes, split details, etc." class="textarea-input" style="height: 100px;"></textarea>
+        </div>
+
+        <!-- Feature 5: Split Transactions -->
+        <div class="form-group">
+          <label>
+            <input v-model="phase13.editForm.isSplit" type="checkbox">
+            Split Transaction (Multiple items)
+          </label>
+        </div>
+        <div v-if="phase13.editForm.isSplit" class="split-items-container">
+          <div v-for="(item, idx) in phase13.editForm.splitItems" :key="idx" class="split-item">
+            <input v-model="item.description" type="text" placeholder="Item description" class="text-input">
+            <input v-model.number="item.amount" type="number" placeholder="0.00" class="text-input" style="width: 120px;">
+            <button @click="phase13.editForm.splitItems.splice(idx, 1)" class="btn-danger btn-sm">Remove</button>
+          </div>
+          <button @click="addSplitItem" class="btn-secondary btn-sm">+ Add Item</button>
+        </div>
+
+        <!-- Feature 6: Location Tagging -->
+        <div class="form-group">
+          <label>Location</label>
+          <input v-model="phase13.editForm.location" type="text" placeholder="e.g., Whole Foods Market, Downtown" class="text-input">
+        </div>
+
+        <!-- Feature 7: Payment Method Tracking -->
+        <div class="form-group">
+          <label>Payment Method</label>
+          <select v-model="phase13.editForm.paymentMethod" class="select-input">
+            <option value="">Select payment method</option>
+            <option value="cash">💵 Cash</option>
+            <option value="credit">💳 Credit Card</option>
+            <option value="debit">💳 Debit Card</option>
+            <option value="check">📋 Check</option>
+            <option value="bank-transfer">🏦 Bank Transfer</option>
+            <option value="mobile-pay">📱 Mobile Pay</option>
+          </select>
+        </div>
+
+        <!-- Feature 9: Time-of-Day Tracking -->
+        <div class="form-group">
+          <label>Date & Time</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <input v-model="phase13.editForm.date" type="date" class="text-input">
+            <input v-model="phase13.editForm.timeOfDay" type="time" class="text-input">
+          </div>
+        </div>
+
+        <!-- Feature 2: Attachment Support -->
+        <div class="form-group">
+          <label>Attachments (Images/Files)</label>
+          <div class="attachment-container">
+            <input type="file" ref="attachmentInput" @change="handleAttachmentUpload" multiple accept="image/*,.pdf">
+            <button @click="$refs.attachmentInput.click()" class="btn-secondary btn-sm">📎 Add Attachments</button>
+          </div>
+          <div v-if="phase13.editForm.attachments && phase13.editForm.attachments.length > 0" class="attachments-preview">
+            <div v-for="(att, idx) in phase13.editForm.attachments" :key="idx" class="attachment-item">
+              <span>{{ att.name }}</span>
+              <button @click="phase13.editForm.attachments.splice(idx, 1)" class="btn-danger btn-xs">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature 8: OCR Correction (if receipt data) -->
+        <div v-if="phase13.editForm.receiptData" class="form-group">
+          <label>OCR Correction</label>
+          <p class="text-muted">Verify and correct OCR-extracted receipt data</p>
+          <div class="ocr-fields">
+            <div class="form-group">
+              <label>Merchant (OCR)</label>
+              <input v-model="phase13.editForm.receiptData.merchant" type="text" class="text-input">
+            </div>
+            <div class="form-group">
+              <label>Total Amount (OCR)</label>
+              <input v-model.number="phase13.editForm.receiptData.amount" type="number" step="0.01" class="text-input">
+            </div>
+            <div class="form-group">
+              <label>Transaction Date (OCR)</label>
+              <input v-model="phase13.editForm.receiptData.date" type="date" class="text-input">
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature 3: Transaction Templates (save this as template) -->
+        <div class="form-group">
+          <label>
+            <input v-model="phase13.editForm.saveAsTemplate" type="checkbox">
+            Save as Template
+          </label>
+        </div>
+        <div v-if="phase13.editForm.saveAsTemplate" class="form-group">
+          <input v-model="phase13.editForm.templateName" type="text" placeholder="Template name (e.g., Weekly Groceries)" class="text-input">
+        </div>
+
+        <!-- Amount field (always visible) -->
+        <div class="form-group">
+          <label>Amount</label>
+          <input v-model.number="phase13.editForm.amount" type="number" step="0.01" placeholder="0.00" class="text-input">
+        </div>
+
+        <div class="form-footer">
+          <button @click="phase13.showEditModal = false" class="btn-secondary">Cancel</button>
+          <button @click="saveTransactionEdit" class="btn-primary">{{ phase13.editingTxn ? 'Save Changes' : 'Add Transaction' }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 13: Transaction Templates Modal -->
+  <div v-if="phase13.showTemplatesModal" class="modal-overlay" @click.self="phase13.showTemplatesModal = false">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Transaction Templates</h2>
+        <button class="btn-close" @click="phase13.showTemplatesModal = false">×</button>
+      </div>
+      <div class="form-section">
+        <div v-if="phase13.templates.length === 0" class="empty-state">
+          <p>No templates yet</p>
+          <p class="text-muted">Create templates by saving transactions with names</p>
+        </div>
+        <div v-else class="templates-list">
+          <div v-for="template in phase13.templates" :key="template.id" class="template-item">
+            <div class="template-info">
+              <div class="template-name">{{ template.name }}</div>
+              <div class="template-meta">{{ template.description }} - {{ formatCurrency(template.amount) }}</div>
+            </div>
+            <div class="template-actions">
+              <button @click="applyTemplate(template)" class="btn-primary btn-sm">Use</button>
+              <button @click="deleteTemplate(template.id)" class="btn-danger btn-sm">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 13: Bulk Edit Modal -->
+  <div v-if="phase13.showBulkEditModal" class="modal-overlay" @click.self="phase13.showBulkEditModal = false">
+    <div class="modal-dialog modal-large">
+      <div class="modal-header">
+        <h2>Bulk Edit ({{ phase13.selectedForBulkEdit.length }} selected)</h2>
+        <button class="btn-close" @click="phase13.showBulkEditModal = false">×</button>
+      </div>
+      <div class="form-section">
+        <p class="text-muted">Modify selected fields for all {{ phase13.selectedForBulkEdit.length }} transactions</p>
+        
+        <div class="bulk-edit-options">
+          <div class="form-group">
+            <label>
+              <input v-model="phase13.bulkEditOptions.updateCategory" type="checkbox">
+              Update Category
+            </label>
+            <select v-if="phase13.bulkEditOptions.updateCategory" v-model="phase13.bulkEditOptions.newCategory" class="select-input">
+              <option value="">Select category</option>
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.emoji }} {{ cat.name }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input v-model="phase13.bulkEditOptions.updateLocation" type="checkbox">
+              Update Location
+            </label>
+            <input v-if="phase13.bulkEditOptions.updateLocation" v-model="phase13.bulkEditOptions.newLocation" type="text" placeholder="Location" class="text-input">
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input v-model="phase13.bulkEditOptions.updatePaymentMethod" type="checkbox">
+              Update Payment Method
+            </label>
+            <select v-if="phase13.bulkEditOptions.updatePaymentMethod" v-model="phase13.bulkEditOptions.newPaymentMethod" class="select-input">
+              <option value="">Select payment method</option>
+              <option value="cash">💵 Cash</option>
+              <option value="credit">💳 Credit Card</option>
+              <option value="debit">💳 Debit Card</option>
+              <option value="check">📋 Check</option>
+              <option value="bank-transfer">🏦 Bank Transfer</option>
+              <option value="mobile-pay">📱 Mobile Pay</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input v-model="phase13.bulkEditOptions.updateTags" type="checkbox">
+              Add Tags
+            </label>
+            <input v-if="phase13.bulkEditOptions.updateTags" v-model="phase13.bulkEditOptions.tagsToAdd" type="text" placeholder="Comma-separated tags" class="text-input">
+          </div>
+        </div>
+
+        <div class="form-footer">
+          <button @click="phase13.showBulkEditModal = false" class="btn-secondary">Cancel</button>
+          <button @click="applyBulkEdit" class="btn-primary">Apply to {{ phase13.selectedForBulkEdit.length }} Transactions</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 13: Duplicate Detection Modal -->
+  <div v-if="phase13.showDuplicateModal" class="modal-overlay" @click.self="phase13.showDuplicateModal = false">
+    <div class="modal-dialog modal-large">
+      <div class="modal-header">
+        <h2>⚠️ Possible Duplicate Transactions</h2>
+        <button class="btn-close" @click="phase13.showDuplicateModal = false">×</button>
+      </div>
+      <div class="form-section">
+        <div v-if="phase13.potentialDuplicates.length === 0" class="empty-state">
+          <p>No duplicates detected</p>
+        </div>
+        <div v-else class="duplicates-list">
+          <p class="text-muted">Found {{ phase13.potentialDuplicates.length }} potential duplicate transactions</p>
+          <div v-for="group in phase13.potentialDuplicates" :key="group.id" class="duplicate-group">
+            <div class="duplicate-group-header">
+              <strong>Similar to: {{ group.description }}</strong>
+              <span class="similarity-badge">{{ Math.round(group.similarity * 100) }}% match</span>
+            </div>
+            <div class="duplicate-items">
+              <div v-for="txn in group.matches" :key="txn.id" class="duplicate-item">
+                <div class="duplicate-details">
+                  <div>{{ txn.description }} - {{ formatCurrency(txn.amount) }}</div>
+                  <div class="text-muted" style="font-size: 0.85rem;">{{ formatDate(txn.date) }} • {{ txn.account }}</div>
+                </div>
+                <div class="duplicate-actions">
+                  <button @click="markAsDuplicate(txn)" class="btn-danger btn-sm">Delete Duplicate</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="js/storage.js"></script>
-<script src="js/ai.js"></script>
-<script src="js/receipt-parser.js"></script>
-<script src="js/app.js"></script>
+<script src=\"https://unpkg.com/vue@3/dist/vue.global.prod.js\"></script>
+<script src=\"js/storage.js\"></script>
+<script src=\"js/ai.js\"></script>
+<script src=\"js/receipt-parser.js\"></script>
+<script src=\"js/category-customizer.js\"></script>
+<script src=\"js/app.js\"></script>
 </body>
 </html>
