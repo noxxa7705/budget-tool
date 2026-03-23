@@ -52,6 +52,43 @@ const app = createApp({
     const merchantSuggestions = ref([]);
     const showMerchantSuggestions = ref(false);
 
+    // ==================== Phase 5 & 6: Analytics & Advanced Features ====================
+    // Analytics state
+    const analyticsData = reactive({
+      selectedPeriod: 'month', // 'week', 'month', 'quarter', 'year'
+      heatmapData: {},
+      merchantFrequency: [],
+      categoryTrends: [],
+      anomalies: [],
+    });
+
+    // Multi-currency support
+    const currencyExchangeRates = ref({
+      'USD': 1,
+      'EUR': 0.92,
+      'GBP': 0.79,
+      'JPY': 149.50,
+      'CAD': 1.36,
+      'AUD': 1.53,
+      'CHF': 0.88,
+      'CNY': 7.24,
+      'INR': 83.12,
+      'MXN': 17.05,
+    });
+
+    // Device sync state
+    const syncModalVisible = ref(false);
+    const syncToken = ref('');
+    const syncExportData = ref('');
+    
+    // Forecast state
+    const forecastData = reactive({
+      predictedEndBalance: 0,
+      daysInMonth: 0,
+      daysElapsed: 0,
+      averageDailySpend: 0,
+    });
+
     // ==================== Phase 1: UX Improvements State ====================
     // AI Insights
     const aiInsight = ref(null);
@@ -1259,6 +1296,246 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       return circumference * (1 - Math.min(1, progress));
     }
 
+    // ==================== Phase 5 & 6: Analytics Functions ====================
+
+    // Generate spending heatmap by day of week
+    function generateSpendingHeatmap() {
+      const heatmap = {
+        'Sun': 0, 'Mon': 0, 'Tue': 0, 'Wed': 0,
+        'Thu': 0, 'Fri': 0, 'Sat': 0,
+        counts: { 'Sun': 0, 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0 }
+      };
+      
+      transactions.value.forEach(txn => {
+        if (txn.type === 'expense') {
+          const d = new Date(txn.date);
+          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          const dayName = days[d.getDay()];
+          heatmap[dayName] += txn.amount;
+          heatmap.counts[dayName]++;
+        }
+      });
+      
+      return heatmap;
+    }
+
+    // Get top 10 merchants by frequency
+    function getTopMerchants(limit = 10) {
+      const merchants = {};
+      transactions.value.forEach(txn => {
+        if (txn.description && txn.type === 'expense') {
+          merchants[txn.description] = (merchants[txn.description] || 0) + 1;
+        }
+      });
+      
+      return Object.entries(merchants)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([name, freq]) => ({ name, frequency: freq }));
+    }
+
+    // Calculate category spending trends (month-over-month)
+    function getCategoryTrends() {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      const trends = {};
+      categories.value.forEach(cat => {
+        trends[cat.id] = { name: cat.name, emoji: cat.emoji, current: 0, previous: 0 };
+      });
+      
+      transactions.value.forEach(txn => {
+        if (txn.type === 'expense') {
+          const d = new Date(txn.date);
+          const isCurrentMonth = d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          const isPreviousMonth = d.getMonth() === (currentMonth - 1 + 12) % 12 && 
+                                  d.getFullYear() === (currentMonth === 0 ? currentYear - 1 : currentYear);
+          
+          if (trends[txn.category]) {
+            if (isCurrentMonth) trends[txn.category].current += txn.amount;
+            if (isPreviousMonth) trends[txn.category].previous += txn.amount;
+          }
+        }
+      });
+      
+      return Object.values(trends)
+        .map(t => ({
+          ...t,
+          percentChange: t.previous > 0 ? ((t.current - t.previous) / t.previous * 100).toFixed(1) : 0
+        }))
+        .sort((a, b) => b.current - a.current);
+    }
+
+    // Detect spending anomalies (> 2 std dev from mean)
+    function detectAnomalies() {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      const monthExpenses = transactions.value
+        .filter(t => t.type === 'expense' && 
+                     new Date(t.date).getMonth() === currentMonth &&
+                     new Date(t.date).getFullYear() === currentYear)
+        .map(t => t.amount);
+      
+      if (monthExpenses.length < 3) return [];
+      
+      const mean = monthExpenses.reduce((a, b) => a + b) / monthExpenses.length;
+      const variance = monthExpenses.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / monthExpenses.length;
+      const stdDev = Math.sqrt(variance);
+      const threshold = mean + (2 * stdDev);
+      
+      return transactions.value
+        .filter(t => t.type === 'expense' && 
+                     new Date(t.date).getMonth() === currentMonth &&
+                     new Date(t.date).getFullYear() === currentYear &&
+                     t.amount > threshold)
+        .sort((a, b) => b.amount - a.amount);
+    }
+
+    // Calculate spending forecast for month-end
+    function calculateForecast() {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const dayOfMonth = now.getDate();
+      
+      const monthExpenses = transactions.value
+        .filter(t => t.type === 'expense' &&
+                     new Date(t.date).getMonth() === currentMonth &&
+                     new Date(t.date).getFullYear() === currentYear)
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const averageDailySpend = monthExpenses / dayOfMonth;
+      const remainingDays = daysInMonth - dayOfMonth;
+      const projectedRemainingSpend = averageDailySpend * remainingDays;
+      const projectedMonthTotal = monthExpenses + projectedRemainingSpend;
+      
+      forecastData.daysInMonth = daysInMonth;
+      forecastData.daysElapsed = dayOfMonth;
+      forecastData.averageDailySpend = averageDailySpend;
+      
+      // Get current month's starting balance from account
+      const primaryAccount = accounts.value[0];
+      if (primaryAccount) {
+        // Estimate starting balance (current - month expenses + month income)
+        const monthIncome = transactions.value
+          .filter(t => t.type === 'income' &&
+                       new Date(t.date).getMonth() === currentMonth &&
+                       new Date(t.date).getFullYear() === currentYear)
+          .reduce((sum, t) => sum + t.amount, 0);
+        
+        const estimatedStartBalance = primaryAccount.balance + monthExpenses - monthIncome;
+        forecastData.predictedEndBalance = estimatedStartBalance - projectedMonthTotal;
+      }
+      
+      return forecastData;
+    }
+
+    // Get account transaction history (mini ledger)
+    function getAccountTransactions(accountId) {
+      return transactions.value
+        .filter(t => t.account === accountId)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 50); // Last 50 transactions
+    }
+
+    // Get account summary
+    function getAccountSummary(accountId) {
+      const txns = transactions.value.filter(t => t.account === accountId);
+      const expenses = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const income = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+      return { expenses, income, count: txns.length };
+    }
+
+    // Export data for device sync
+    function generateSyncToken() {
+      const data = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        accounts: accounts.value,
+        transactions: transactions.value,
+        categories: categories.value,
+        budgets: budgets.value,
+        goals: goals.value,
+        recurringTransactions: recurringTransactions.value,
+        settings: {
+          currency: settings.value.currency,
+          theme: settings.value.theme,
+        }
+      };
+      return btoa(JSON.stringify(data));
+    }
+
+    // Import data from sync token
+    function importSyncToken(token) {
+      try {
+        const data = JSON.parse(atob(token));
+        accounts.value = data.accounts;
+        transactions.value = data.transactions;
+        categories.value = data.categories;
+        budgets.value = data.budgets;
+        goals.value = data.goals;
+        recurringTransactions.value = data.recurringTransactions;
+        settings.value.currency = data.settings.currency;
+        settings.value.theme = data.settings.theme;
+        saveAllData();
+        showNotification('Data imported successfully!');
+        return true;
+      } catch (err) {
+        showNotification('Failed to import data: ' + err.message);
+        return false;
+      }
+    }
+
+    // Computed: Get peer benchmarks (seeded sample data)
+    const peerBenchmarks = computed(() => {
+      const monthlyExpense = monthlyExpenses.value;
+      return {
+        'groceries': { avg: 400, percentile: monthlyExpense > 400 ? 75 : 25 },
+        'dining': { avg: 250, percentile: monthlyExpense > 250 ? 65 : 35 },
+        'entertainment': { avg: 150, percentile: monthlyExpense > 150 ? 60 : 40 },
+        'transport': { avg: 300, percentile: monthlyExpense > 300 ? 70 : 30 },
+        'utilities': { avg: 180, percentile: monthlyExpense > 180 ? 55 : 45 },
+      };
+    });
+
+    // Computed: Smart goals with progress and milestones
+    const enhancedGoals = computed(() => {
+      return goals.value.map(goal => {
+        const progress = (goal.current / goal.target) * 100;
+        const daysElapsed = Math.floor((new Date() - new Date(goal.createdAt)) / (1000 * 60 * 60 * 24));
+        const daysRemaining = goal.targetDays - daysElapsed;
+        const progressPerDay = goal.current / Math.max(daysElapsed, 1);
+        const projectedDaysToGoal = daysRemaining > 0 ? goal.target / Math.max(progressPerDay, 0.01) : 0;
+        
+        return {
+          ...goal,
+          progress: Math.min(100, progress),
+          projectedDaysToGoal: Math.max(0, projectedDaysToGoal),
+          isOnTrack: projectedDaysToGoal <= daysRemaining,
+          milestones: [
+            { percent: 25, reached: progress >= 25 },
+            { percent: 50, reached: progress >= 50 },
+            { percent: 75, reached: progress >= 75 },
+            { percent: 100, reached: progress >= 100 },
+          ],
+          streak: Math.floor(daysElapsed / 7), // Weekly streak
+        };
+      });
+    });
+
+    // Watch for goal updates to trigger notifications on milestones
+    watch(() => goals.value, () => {
+      enhancedGoals.value.forEach(goal => {
+        if (goal.progress >= 100 && !goal.completed) {
+          showNotification(`🎯 Goal "${goal.name}" completed!`);
+        }
+      });
+    }, { deep: true });
+
     // ==================== Storage ====================
     async function saveAllData() {
       await Promise.all([
@@ -1374,6 +1651,25 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       // Phase 4: Tags
       allTags,
       loadTheme,
+
+      // Phase 5 & 6: Analytics and Advanced Features
+      analyticsData,
+      generateSpendingHeatmap,
+      getTopMerchants,
+      getCategoryTrends,
+      detectAnomalies,
+      calculateForecast,
+      getAccountTransactions,
+      getAccountSummary,
+      generateSyncToken,
+      importSyncToken,
+      peerBenchmarks,
+      enhancedGoals,
+      forecastData,
+      currencyExchangeRates,
+      syncModalVisible,
+      syncToken,
+      syncExportData,
     };
   },
 });

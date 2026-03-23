@@ -296,24 +296,180 @@
     </div>
 
     <!-- Goals Tab -->
-    <div v-show="activeTab === 'goals'" class="tab-content">
-      <div class="goals-view">
-        <div class="goals-list">
-          <div v-for="goal in goals" :key="goal.id" class="goal-card">
-            <div class="goal-header">
-              <span class="goal-name">{{ goal.name }}</span>
-              <span class="goal-target">{{ formatCurrency(goal.current) }} / {{ formatCurrency(goal.target) }}</span>
+    <div v-show=\"activeTab === 'goals'\" class=\"tab-content\">
+      <div class=\"goals-view\">
+        <div class=\"goals-list\">
+          <div v-for=\"egoal in enhancedGoals\" :key=\"egoal.id\" class=\"goal-card\">
+            <div class=\"goal-header\">
+              <span class=\"goal-name\">{{ egoal.name }}</span>
+              <span class=\"goal-target\">{{ formatCurrency(egoal.current) }} / {{ formatCurrency(egoal.target) }}</span>
             </div>
-            <div class="progress-ring-container">
-              <svg class="progress-ring" viewBox="0 0 100 100">
-                <circle class="progress-bg" cx="50" cy="50" r="45"></circle>
-                <circle class="progress-fill" cx="50" cy="50" r="45" :style="{ strokeDashoffset: getProgressOffset(goal) }"></circle>
+            <div class=\"progress-ring-container\">
+              <svg class=\"progress-ring\" viewBox=\"0 0 100 100\">
+                <circle class=\"progress-bg\" cx=\"50\" cy=\"50\" r=\"45\"></circle>
+                <circle class=\"progress-fill\" cx=\"50\" cy=\"50\" r=\"45\" :style=\"{ strokeDashoffset: getProgressOffset(egoal) }\"></circle>
               </svg>
-              <div class="progress-text">{{ Math.round((goal.current / goal.target) * 100) }}%</div>
+              <div class=\"progress-text\">{{ Math.round(egoal.progress) }}%</div>
             </div>
-            <div class="goal-info">
-              <p v-if="goal.targetDate">Target: {{ formatDate(goal.targetDate) }}</p>
-              <p>Monthly: {{ formatCurrency(goal.monthlyContribution) }}</p>
+
+            <!-- Phase 5: Milestone badges -->
+            <div class=\"milestone-badges\">
+              <span v-for=\"milestone in egoal.milestones\" :key=\"milestone.percent\" class=\"milestone\" :class=\"{ reached: milestone.reached }\">
+                {{ milestone.percent }}%
+              </span>
+            </div>
+
+            <div class=\"goal-info\">
+              <p v-if=\"egoal.targetDate\">Target: {{ formatDate(egoal.targetDate) }}</p>
+              <p>Monthly: {{ formatCurrency(egoal.monthlyContribution) }}</p>
+              <!-- Phase 5: Auto-calculated time-to-goal -->
+              <p class=\"goal-forecast\" :class=\"{ ontrack: egoal.isOnTrack, offtrack: !egoal.isOnTrack }\">
+                <span v-if=\"egoal.isOnTrack\">✓ On track - {{ Math.round(egoal.projectedDaysToGoal) }} days to goal</span>
+                <span v-else>⚠ Behind - {{ Math.round(egoal.projectedDaysToGoal) }} days projected</span>
+              </p>
+              <!-- Phase 5: Streak badges -->
+              <p class=\"goal-streak\">🔥 {{ egoal.streak }} week streak</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics Tab (Phase 5) -->
+    <div v-show="activeTab === 'analytics'" class="tab-content">
+      <div class="analytics">
+        <!-- Spending Heatmap -->
+        <div class="section">
+          <h3 class="section-title">📊 Spending Heatmap (By Day of Week)</h3>
+          <div class="heatmap-container">
+            <div v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="day" class="heatmap-cell">
+              <div class="heatmap-day">{{ day }}</div>
+              <div class="heatmap-bar" :style="{ height: (generateSpendingHeatmap()[day] / Math.max(...Object.values(generateSpendingHeatmap()).filter((v, k) => k !== 'counts')) || 1) * 100 + '%' }"></div>
+              <div class="heatmap-value">{{ formatCurrency(generateSpendingHeatmap()[day]) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Merchants -->
+        <div class="section">
+          <h3 class="section-title">🏪 Top Merchants (Frequency)</h3>
+          <div class="merchant-list">
+            <div v-for="(merchant, idx) in getTopMerchants(10)" :key="idx" class="merchant-row">
+              <div class="merchant-name">{{ merchant.name }}</div>
+              <div class="merchant-freq">{{ merchant.frequency }}×</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Trends (MoM) -->
+        <div class="section">
+          <h3 class="section-title">📈 Category Trends (Month-over-Month %)</h3>
+          <div class="trend-list">
+            <div v-for="trend in getCategoryTrends()" :key="trend.name" class="trend-row">
+              <div class="trend-category">{{ trend.emoji }} {{ trend.name }}</div>
+              <div class="trend-amounts">
+                <span class="trend-current">{{ formatCurrency(trend.current) }}</span>
+                <span class="trend-change" :class="{ positive: trend.percentChange >= 0, negative: trend.percentChange < 0 }">
+                  {{ trend.percentChange >= 0 ? '+' : '' }}{{ trend.percentChange }}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Peer Benchmarks -->
+        <div class="section">
+          <h3 class="section-title">👥 Peer Benchmarks (Sample Data)</h3>
+          <div class="benchmark-list">
+            <div v-for="(benchmark, category) in peerBenchmarks" :key="category" class="benchmark-row">
+              <div class="benchmark-name">{{ category }}</div>
+              <div class="benchmark-info">
+                <span class="benchmark-avg">Avg: {{ formatCurrency(benchmark.avg) }}</span>
+                <span class="benchmark-percentile">{{ benchmark.percentile }}th %ile</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spending Anomalies (Phase 6) -->
+        <div class="section">
+          <h3 class="section-title">⚠️ Spending Anomalies (>2σ from mean)</h3>
+          <div v-if="detectAnomalies().length > 0" class="anomaly-list">
+            <div v-for="anomaly in detectAnomalies()" :key="anomaly.id" class="anomaly-item">
+              <div class="anomaly-desc">
+                <div class="anomaly-name">{{ anomaly.description }}</div>
+                <div class="anomaly-date">{{ formatDate(anomaly.date) }}</div>
+              </div>
+              <div class="anomaly-amount">{{ formatCurrency(anomaly.amount) }}</div>
+            </div>
+          </div>
+          <div v-else class="text-muted" style="padding: var(--spacing-md); text-align: center;">
+            No unusual spending detected this month
+          </div>
+        </div>
+
+        <!-- Month-End Forecast (Phase 6) -->
+        <div class="section">
+          <h3 class="section-title">🔮 Month-End Forecast</h3>
+          <div class="forecast-container">
+            <div class="forecast-card">
+              <div class="forecast-label">Avg Daily Spend</div>
+              <div class="forecast-value">{{ formatCurrency(calculateForecast().averageDailySpend) }}</div>
+              <div class="forecast-subtitle">{{ calculateForecast().daysElapsed }} days elapsed</div>
+            </div>
+            <div class="forecast-card">
+              <div class="forecast-label">Projected Month Total</div>
+              <div class="forecast-value">{{ formatCurrency(monthlyExpenses + (calculateForecast().averageDailySpend * (calculateForecast().daysInMonth - calculateForecast().daysElapsed))) }}</div>
+              <div class="forecast-subtitle">{{ calculateForecast().daysInMonth - calculateForecast().daysElapsed }} days left</div>
+            </div>
+            <div class="forecast-card">
+              <div class="forecast-label">Predicted End Balance</div>
+              <div class="forecast-value" :style="{ color: calculateForecast().predictedEndBalance >= 0 ? '#10b981' : '#ef4444' }">
+                {{ formatCurrency(calculateForecast().predictedEndBalance) }}
+              </div>
+              <div class="forecast-subtitle">Primary account</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accounts Tab (Phase 5) -->
+    <div v-show="activeTab === 'accounts'" class="tab-content">
+      <div class="accounts-statements">
+        <div v-for="account in accounts" :key="account.id" class="account-statement">
+          <div class="account-header">
+            <div class="account-title">{{ account.name }}</div>
+            <div class="account-balance-large" :class="'balance-' + account.type">
+              {{ formatCurrency(account.balance) }}
+            </div>
+          </div>
+          
+          <div class="account-summary">
+            <div class="summary-stat">
+              <span class="stat-label">Total Transactions</span>
+              <span class="stat-value">{{ getAccountSummary(account.id).count }}</span>
+            </div>
+            <div class="summary-stat">
+              <span class="stat-label">Total Expenses</span>
+              <span class="stat-value">{{ formatCurrency(getAccountSummary(account.id).expenses) }}</span>
+            </div>
+            <div class="summary-stat">
+              <span class="stat-label">Total Income</span>
+              <span class="stat-value">{{ formatCurrency(getAccountSummary(account.id).income) }}</span>
+            </div>
+          </div>
+
+          <h4 class="statement-subtitle">Recent Transactions (Last 50)</h4>
+          <div class="statement-txns">
+            <div v-for="txn in getAccountTransactions(account.id)" :key="txn.id" class="statement-txn" :class="txn.type">
+              <div class="txn-info">
+                <div class="txn-desc">{{ txn.description }}</div>
+                <div class="txn-date">{{ formatDate(txn.date) }}</div>
+              </div>
+              <div class="txn-amount" :class="'amount-' + txn.type">
+                {{ txn.type === 'expense' ? '-' : '+' }}{{ formatCurrency(txn.amount) }}
+              </div>
             </div>
           </div>
         </div>
@@ -365,6 +521,13 @@
         </div>
 
         <div class=\"settings-section\">
+                  <div class="settings-section">
+          <h3>Device Sync (Phase 6)</h3>
+          <p class="text-muted">Export/import your data as encrypted tokens between devices. No server required.</p>
+          <button @click="syncModalVisible = true" class="btn-secondary">💾 Export/Import Data</button>
+        </div>
+
+        <div class="settings-section">
           <h3>Data</h3>
           <button @click=\"exportAsCSV\" class=\"btn-secondary\">📊 Export as CSV</button>
           <button @click=\"exportData\" class=\"btn-secondary\">Export as JSON</button>
@@ -407,6 +570,18 @@
             title="Goals">
       <span class="nav-icon">◎</span>
       <span class="nav-label">Goals</span>
+    </button>
+    <button :class="['nav-btn', { active: activeTab === 'analytics' }]"
+            @click="activeTab = 'analytics'"
+            title="Analytics">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Analysis</span>
+    </button>
+    <button :class="['nav-btn', { active: activeTab === 'accounts' }]"
+            @click="activeTab = 'accounts'"
+            title="Accounts">
+      <span class="nav-icon">🏦</span>
+      <span class="nav-label">Accounts</span>
     </button>
     <button :class="['nav-btn', { active: activeTab === 'settings' }]"
             @click="activeTab = 'settings'"
@@ -604,6 +779,39 @@
           <button @click="parseNaturalLanguage" :disabled="!naturalLanguageInput.trim()" class="btn-primary btn-full">
             Parse
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Device Sync Modal (Phase 6) -->
+  <div v-if="syncModalVisible" class="modal-overlay" @click.self="syncModalVisible = false">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Device Sync</h2>
+        <button class="btn-close" @click="syncModalVisible = false">×</button>
+      </div>
+      <div class="sync-modal">
+        <div class="sync-section">
+          <h4>📤 Export Your Data</h4>
+          <p class="text-muted">Copy this token and paste it on another device to import all your data.</p>
+          <textarea class="sync-textarea" :value="generateSyncToken()" readonly @click="$event.target.select()"></textarea>
+          <button @click="syncExportData = generateSyncToken(); showNotification('Token copied!')" class="btn-secondary">Copy Token</button>
+        </div>
+
+        <div class="sync-section">
+          <h4>📥 Import Data</h4>
+          <p class="text-muted">Paste a token from another device to import their data. This will replace your current data.</p>
+          <textarea v-model="syncToken" class="sync-textarea" placeholder="Paste sync token here..."></textarea>
+          <div class="sync-buttons">
+            <button @click="importSyncToken(syncToken)" class="btn-primary">Import Data</button>
+            <button @click="syncToken = ''" class="btn-secondary">Clear</button>
+          </div>
+        </div>
+
+        <div class="text-muted" style="font-size: 0.85rem; text-align: center; margin-top: var(--spacing-md);">
+          💡 Data is encoded but not encrypted. Keep tokens private.
         </div>
       </div>
     </div>
