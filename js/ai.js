@@ -1,9 +1,12 @@
-// AI Module — LLM endpoint abstraction with streaming + single-shot fallback
+// AI Module — OpenAI-compatible endpoint abstraction with streaming + single-shot fallback
+const DEFAULT_LLM_ENDPOINT = '';
+const DEFAULT_LLM_MODEL = 'gpt-4.1-mini';
+const DEFAULT_VISION_MODEL = 'gpt-4.1-mini';
+
 window.AI = {
-  // Config management
   getConfig() {
     return {
-      endpoint: localStorage.getItem('ai_endpoint') || '',
+      endpoint: localStorage.getItem('ai_endpoint') || DEFAULT_LLM_ENDPOINT,
       apiKey: localStorage.getItem('ai_key') || '',
       visionEndpoint: localStorage.getItem('ai_vision_endpoint') || '',
       visionApiKey: localStorage.getItem('ai_vision_key') || '',
@@ -11,7 +14,7 @@ window.AI = {
   },
 
   saveConfig(config) {
-    localStorage.setItem('ai_endpoint', config.endpoint || '');
+    localStorage.setItem('ai_endpoint', config.endpoint || DEFAULT_LLM_ENDPOINT);
     localStorage.setItem('ai_key', config.apiKey || '');
     localStorage.setItem('ai_vision_endpoint', config.visionEndpoint || '');
     localStorage.setItem('ai_vision_key', config.visionApiKey || '');
@@ -22,16 +25,14 @@ window.AI = {
     return !!(cfg.endpoint || cfg.visionEndpoint);
   },
 
-  // Normalize endpoint URL
   normalizeEndpoint(raw) {
     if (!raw) return '';
     let s = raw.trim().replace(/\/+$/, '');
-    if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+    if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
     if (!/\/v1$/i.test(s)) s += '/v1';
     return s;
   },
 
-  // Test endpoint connectivity
   async testConnection(endpoint, apiKey) {
     if (!endpoint) return false;
     try {
@@ -39,15 +40,13 @@ window.AI = {
       const resp = await fetch(`${normalized}/models`, {
         method: 'GET',
         headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-        timeout: 5000,
       });
       return resp.ok;
-    } catch (err) {
+    } catch (_) {
       return false;
     }
   },
 
-  // Fetch available models
   async getModels(endpoint, apiKey) {
     if (!endpoint) return [];
     try {
@@ -58,17 +57,16 @@ window.AI = {
       if (!resp.ok) return [];
       const data = await resp.json();
       return data.data || [];
-    } catch (err) {
+    } catch (_) {
       return [];
     }
   },
 
-  // Core streaming + single-shot runner
   async runAI(messages, options = {}) {
     const {
-      endpoint = '',
+      endpoint = DEFAULT_LLM_ENDPOINT,
       apiKey = '',
-      model = 'gpt-3.5-turbo',
+      model = DEFAULT_LLM_MODEL,
       temperature = 0.7,
       onChunk = () => {},
       onDone = () => {},
@@ -89,7 +87,6 @@ window.AI = {
       stream: true,
     };
 
-    // Try streaming
     try {
       const resp = await fetch(`${normalized}/chat/completions`, {
         method: 'POST',
@@ -105,7 +102,6 @@ window.AI = {
 
       const contentType = resp.headers.get('content-type') || '';
       if (!contentType.includes('text/event-stream')) {
-        // Not SSE, parse as JSON
         const json = await resp.json();
         const text = extractText(
           json.choices?.[0]?.message?.content ||
@@ -117,7 +113,6 @@ window.AI = {
         return text;
       }
 
-      // Parse SSE stream
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -138,29 +133,33 @@ window.AI = {
             onDone();
             return fullText;
           }
-          if (line.startsWith('data: ')) {
-            try {
-              const json = JSON.parse(line.slice(6));
-              const chunk = extractText(
-                json.choices?.[0]?.delta?.content ||
-                json.choices?.[0]?.delta?.text ||
-                ''
-              );
-              // Skip reasoning tokens
-              if (json.choices?.[0]?.delta?.reasoning_content !== undefined &&
-                  json.choices?.[0]?.delta?.content === undefined) {
-                continue;
-              }
-              if (chunk) {
-                onChunk(chunk);
-                fullText += chunk;
-              }
-            } catch (e) {
-              // Malformed line, skip
+          if (!line.startsWith('data: ')) continue;
+
+          try {
+            const json = JSON.parse(line.slice(6));
+            if (
+              json.choices?.[0]?.delta?.reasoning_content !== undefined &&
+              json.choices?.[0]?.delta?.content === undefined
+            ) {
+              continue;
             }
+
+            const chunk = extractText(
+              json.choices?.[0]?.delta?.content ||
+              json.choices?.[0]?.delta?.text ||
+              ''
+            );
+
+            if (chunk) {
+              onChunk(chunk);
+              fullText += chunk;
+            }
+          } catch (_) {
+            // Ignore malformed SSE lines.
           }
         }
       }
+
       onDone();
       return fullText;
     } catch (err) {
@@ -168,10 +167,8 @@ window.AI = {
         onError('Cancelled');
         return '';
       }
-      // Fall through to single-shot
     }
 
-    // Fallback: single-shot completion with simulated streaming
     try {
       const resp = await fetch(`${normalized}/chat/completions`, {
         method: 'POST',
@@ -192,36 +189,35 @@ window.AI = {
         json.output_text || ''
       );
 
-      // Simulate word-by-word streaming for consistent UX
       for (const word of text.split(' ')) {
-        if (word) {
-          onChunk(word + ' ');
-          await new Promise(r => setTimeout(r, 8));
-        }
+        if (!word) continue;
+        onChunk(word + ' ');
+        await new Promise((resolve) => setTimeout(resolve, 8));
       }
+
       onDone();
       return text;
     } catch (err) {
-      onError(err.message);
+      onError(err.message || 'Request failed');
       return '';
     }
   },
 
-  // Parse natural language transaction
   async parseNaturalLanguage(input, config) {
     if (!config.llmEndpoint && !config.visionEndpoint) {
       throw new Error('No LLM configured');
     }
 
-    const endpoint = config.llmEndpoint || config.visionEndpoint;
-    const apiKey = config.llmEndpoint ? config.apiKey : config.visionApiKey;
+    const endpoint = config.llmEndpoint || config.visionEndpoint || DEFAULT_LLM_ENDPOINT;
+    const apiKey = endpoint === config.llmEndpoint ? config.apiKey : config.visionApiKey;
 
     let result = '';
     await this.runAI(
       [
         {
           role: 'system',
-          content: 'Parse a transaction description. Return ONLY a JSON object: {"amount": 12.34, "category": "groceries", "description": "item name", "date": "YYYY-MM-DD"}',
+          content:
+            'Parse a transaction description. Return ONLY a JSON object: {"amount": 12.34, "category": "cat-groceries", "description": "item name", "date": "YYYY-MM-DD"}',
         },
         {
           role: 'user',
@@ -231,8 +227,10 @@ window.AI = {
       {
         endpoint,
         apiKey,
-        model: 'gpt-3.5-turbo',
-        onChunk: (chunk) => { result += chunk; },
+        model: DEFAULT_LLM_MODEL,
+        onChunk: (chunk) => {
+          result += chunk;
+        },
         onDone: () => {},
       }
     );
@@ -240,57 +238,10 @@ window.AI = {
     const parsed = parseJsonFromText(result);
     return parsed || null;
   },
+
+  defaults: {
+    endpoint: DEFAULT_LLM_ENDPOINT,
+    model: DEFAULT_LLM_MODEL,
+    visionModel: DEFAULT_VISION_MODEL,
+  },
 };
-
-// Make helper functions available
-function extractText(value) {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return value.map(extractText).join('');
-  if (value && typeof value === 'object') {
-    if (typeof value.text === 'string') return value.text;
-    if (typeof value.content === 'string') return value.content;
-    if (Array.isArray(value.content)) return value.content.map(extractText).join('');
-    if (typeof value.output_text === 'string') return value.output_text;
-    if (Array.isArray(value.parts)) return value.parts.map(extractText).join('');
-  }
-  return '';
-}
-
-function parseJsonFromText(text) {
-  if (!text) return null;
-
-  const cleaned = String(text || '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .trim()
-    .replace(/^```[a-z]*\n?/i, '')
-    .replace(/\n?```$/i, '')
-    .trim();
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (_) {}
-
-  const arrIdx = cleaned.indexOf('[');
-  const objIdx = cleaned.indexOf('{');
-  let start = -1;
-
-  if (arrIdx !== -1 && (objIdx === -1 || arrIdx < objIdx)) start = arrIdx;
-  else if (objIdx !== -1) start = objIdx;
-
-  if (start !== -1) {
-    try {
-      return JSON.parse(cleaned.slice(start));
-    } catch (_) {}
-
-    const opener = cleaned[start];
-    const closer = opener === '[' ? ']' : '}';
-    const end = cleaned.lastIndexOf(closer);
-    if (end > start) {
-      try {
-        return JSON.parse(cleaned.slice(start, end + 1));
-      } catch (_) {}
-    }
-  }
-
-  return null;
-}

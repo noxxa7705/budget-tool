@@ -67,7 +67,9 @@ const app = createApp({
       categories.value = (await getStorage('categories')) || initializeCategories();
       budgets.value = (await getStorage('budgets')) || initializeBudgets();
       goals.value = (await getStorage('goals')) || [];
-      settings.value = (await getStorage('settings')) || settings.value;
+      const storedSettings = (await getStorage('settings')) || {};
+      settings.value = { ...settings.value, ...storedSettings };
+
       
       // Initialize quickAdd with first account
       if (accounts.value.length > 0 && !quickAdd.account) {
@@ -486,7 +488,7 @@ const app = createApp({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `budget-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `night-ledger-export-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       showNotification('Exported successfully!');
     }

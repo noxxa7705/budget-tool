@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Budget Tool — Personal Finance</title>
+  <title>Night Ledger — Personal Finance</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%23ffd700'>💰</text></svg>">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,7 @@
 
 <nav id="nav" class="navbar">
   <div class="nav-inner">
-    <a href="#" class="nav-logo">💰 Budget</a>
+    <a href="#" class="nav-logo">🌙 Night Ledger</a>
     <span class="nav-title">Personal Finance</span>
   </div>
 </nav>
@@ -212,12 +212,13 @@
           <h3>AI & LLM</h3>
           <div class="setting-row">
             <label>LLM Endpoint</label>
-            <input v-model="settings.llmEndpoint" type="text" placeholder="http://localhost:8000/v1" class="text-input">
+            <input v-model="settings.llmEndpoint" type="text" placeholder="https://your-endpoint.example/v1" class="text-input">
             <div class="status-badge" :class="aiEndpointStatus">{{ aiEndpointStatus }}</div>
           </div>
           <div class="setting-row">
-            <label>API Key (optional)</label>
-            <input v-model="settings.apiKey" type="password" placeholder="sk-..." class="text-input">
+            <label>API Key</label>
+            <input v-model="settings.apiKey" type="password" placeholder="Paste your sk- key here" class="text-input">
+            <p class="text-muted">Stored only in this browser. Not shipped in GitHub Pages.</p>
           </div>
           <div class="setting-row">
             <label>Vision Endpoint (optional)</label>
@@ -239,7 +240,7 @@
 
         <div class="settings-section">
           <h3>About</h3>
-          <p class="text-muted">Budget Tool v1.0</p>
+          <p class="text-muted">Night Ledger v1.1</p>
           <p class="text-muted">100% offline • PWA enabled • localStorage + IndexedDB</p>
         </div>
       </div>

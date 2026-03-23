@@ -1,7 +1,7 @@
 {
-  "name": "Budget Tool - Personal Finance",
-  "short_name": "Budget",
-  "description": "100% offline personal budget manager with receipt OCR",
+  "name": "Night Ledger - Personal Finance",
+  "short_name": "NightLedger",
+  "description": "Offline-first personal finance tracker with optional AI assist and receipt OCR",
   "start_url": "https://noxxa7705.github.io/budget-tool/",
   "scope": "https://noxxa7705.github.io/budget-tool/",
   "display": "standalone",

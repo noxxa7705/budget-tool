@@ -1,64 +1,63 @@
 // Receipt OCR Parser — vision API integration
+const RECEIPT_VISION_MODEL = 'gpt-4.1-mini';
+
 window.ReceiptParser = {
-  // Merchant -> category map for smart categorization
   merchantCategoryMap: {
     'whole foods': 'cat-groceries',
     'trader joe': 'cat-groceries',
-    'safeway': 'cat-groceries',
-    'kroger': 'cat-groceries',
-    'costco': 'cat-groceries',
-    'walmart': 'cat-shopping',
-    'target': 'cat-shopping',
-    'amazon': 'cat-shopping',
-    'starbucks': 'cat-coffee',
-    'dunkin': 'cat-coffee',
+    safeway: 'cat-groceries',
+    kroger: 'cat-groceries',
+    costco: 'cat-groceries',
+    walmart: 'cat-shopping',
+    target: 'cat-shopping',
+    amazon: 'cat-shopping',
+    starbucks: 'cat-coffee',
+    dunkin: 'cat-coffee',
     'tim horton': 'cat-coffee',
-    'chipotle': 'cat-dining',
-    'panera': 'cat-dining',
-    'subway': 'cat-dining',
-    'mcdonald': 'cat-dining',
+    chipotle: 'cat-dining',
+    panera: 'cat-dining',
+    subway: 'cat-dining',
+    mcdonald: 'cat-dining',
     'burger king': 'cat-dining',
     'chick-fil-a': 'cat-dining',
     'uber eats': 'cat-dining',
-    'doordash': 'cat-dining',
-    'grubhub': 'cat-dining',
-    'shell': 'cat-gas',
-    'chevron': 'cat-gas',
-    'exxon': 'cat-gas',
-    'bp': 'cat-gas',
-    'mobil': 'cat-gas',
-    'walgreens': 'cat-healthcare',
-    'cvs': 'cat-healthcare',
-    'walmat pharmacy': 'cat-healthcare',
+    doordash: 'cat-dining',
+    grubhub: 'cat-dining',
+    shell: 'cat-gas',
+    chevron: 'cat-gas',
+    exxon: 'cat-gas',
+    bp: 'cat-gas',
+    mobil: 'cat-gas',
+    walgreens: 'cat-healthcare',
+    cvs: 'cat-healthcare',
+    'walmart pharmacy': 'cat-healthcare',
     'whole foods pharmacy': 'cat-healthcare',
-    'uber': 'cat-transport',
-    'lyft': 'cat-transport',
-    'taxi': 'cat-transport',
-    'cinema': 'cat-entertainment',
-    'movie': 'cat-entertainment',
-    'concert': 'cat-entertainment',
-    'spotify': 'cat-entertainment',
-    'netflix': 'cat-entertainment',
-    'hulu': 'cat-entertainment',
-    'steam': 'cat-entertainment',
+    uber: 'cat-transport',
+    lyft: 'cat-transport',
+    taxi: 'cat-transport',
+    cinema: 'cat-entertainment',
+    movie: 'cat-entertainment',
+    concert: 'cat-entertainment',
+    spotify: 'cat-entertainment',
+    netflix: 'cat-entertainment',
+    hulu: 'cat-entertainment',
+    steam: 'cat-entertainment',
   },
 
   async parseReceipt(imageBase64, config) {
     if (!config.llmEndpoint && !config.visionEndpoint) {
-      throw new Error('No LLM endpoint configured. Add one in Settings.');
+      throw new Error('No AI endpoint configured. Add one in Settings.');
     }
 
-    // Use vision endpoint if available, fall back to main endpoint
-    const endpoint = config.visionEndpoint || config.llmEndpoint;
+    const endpoint = config.visionEndpoint || config.llmEndpoint || window.AI.defaults.endpoint;
     const apiKey = config.visionEndpoint ? config.visionApiKey : config.apiKey;
 
     if (!endpoint) {
       throw new Error('Vision endpoint not configured');
     }
 
-    // Check for mixed-content warning
     if (window.location.protocol === 'https:' && endpoint.startsWith('http://')) {
-      throw new Error('Mixed content: HTTPS page cannot call HTTP endpoint. Use HTTPS endpoint or test locally.');
+      throw new Error('Mixed content: HTTPS page cannot call HTTP endpoint. Use an HTTPS endpoint or test locally.');
     }
 
     const visionPrompt = `You are a receipt parser. Extract transaction data from this receipt image.
@@ -74,48 +73,41 @@ Return ONLY valid JSON (no markdown, no explanation):
   "note": ""
 }`;
 
-    const payload = {
-      model: config.model || 'gpt-4-vision',
-      messages: [
+    let result = '';
+    await window.AI.runAI(
+      [
         {
           role: 'user',
           content: [
-            {
-              type: 'text',
-              text: visionPrompt,
-            },
+            { type: 'text', text: visionPrompt },
             {
               type: 'image',
               source: {
                 type: 'base64',
                 media_type: 'image/jpeg',
-                data: imageBase64.split(',')[1], // Remove data:image/jpeg;base64, prefix
+                data: imageBase64.split(',')[1],
               },
             },
           ],
         },
       ],
-      temperature: 0.2,
-      max_tokens: 500,
-    };
-
-    let result = '';
-    await window.AI.runAI(payload.messages, {
-      endpoint,
-      apiKey,
-      model: payload.model,
-      temperature: payload.temperature,
-      onChunk: (chunk) => { result += chunk; },
-      onDone: () => {},
-    });
+      {
+        endpoint,
+        apiKey,
+        model: config.model || RECEIPT_VISION_MODEL,
+        temperature: 0.2,
+        onChunk: (chunk) => {
+          result += chunk;
+        },
+        onDone: () => {},
+      }
+    );
 
     const parsed = parseJsonFromText(result);
-
     if (!parsed || typeof parsed !== 'object') {
       throw new Error('Could not parse receipt data');
     }
 
-    // Clean up and validate
     return {
       merchant: String(parsed.merchant || 'Unknown').trim(),
       amount: parseFloat(parsed.amount) || 0,
@@ -132,32 +124,25 @@ Return ONLY valid JSON (no markdown, no explanation):
   suggestCategory(merchant, amount) {
     const lower = merchant.toLowerCase();
 
-    // Direct merchant match
     for (const [key, catId] of Object.entries(this.merchantCategoryMap)) {
-      if (lower.includes(key)) {
-        return catId;
-      }
+      if (lower.includes(key)) return catId;
     }
 
-    // Heuristic: high-value shopping
     if (amount > 100 && (lower.includes('amazon') || lower.includes('store') || lower.includes('shop'))) {
       return 'cat-shopping';
     }
 
-    // Default to 'other'
     return 'cat-other';
   },
 
-  // Enhanced parsing with LLM category suggestion
   async parseReceiptWithAICategory(imageBase64, config) {
     const basic = await this.parseReceipt(imageBase64, config);
 
-    // Optional: ask AI for better category
     try {
       const categoryPrompt = `Given this receipt:
 Merchant: ${basic.merchant}
 Amount: $${basic.amount}
-Items: ${basic.items.map(i => i.description).join(', ') || 'Not specified'}
+Items: ${basic.items.map((i) => i.description).join(', ') || 'Not specified'}
 
 Suggest a budget category from: groceries, dining, coffee, gas, shopping, utilities, healthcare, entertainment, transport, other.
 Return ONLY the category name, nothing else.`;
@@ -166,23 +151,26 @@ Return ONLY the category name, nothing else.`;
       await window.AI.runAI(
         [{ role: 'user', content: categoryPrompt }],
         {
-          endpoint: config.llmEndpoint || config.visionEndpoint,
-          apiKey: config.apiKey || config.visionApiKey,
-          onChunk: (chunk) => { suggestion += chunk; },
+          endpoint: config.llmEndpoint || config.visionEndpoint || window.AI.defaults.endpoint,
+          apiKey: config.apiKey || config.visionApiKey || '',
+          model: window.AI.defaults.model,
+          onChunk: (chunk) => {
+            suggestion += chunk;
+          },
         }
       );
 
       const categoryMap = {
-        'groceries': 'cat-groceries',
-        'dining': 'cat-dining',
-        'coffee': 'cat-coffee',
-        'gas': 'cat-gas',
-        'shopping': 'cat-shopping',
-        'utilities': 'cat-utilities',
-        'healthcare': 'cat-healthcare',
-        'entertainment': 'cat-entertainment',
-        'transport': 'cat-transport',
-        'other': 'cat-other',
+        groceries: 'cat-groceries',
+        dining: 'cat-dining',
+        coffee: 'cat-coffee',
+        gas: 'cat-gas',
+        shopping: 'cat-shopping',
+        utilities: 'cat-utilities',
+        healthcare: 'cat-healthcare',
+        entertainment: 'cat-entertainment',
+        transport: 'cat-transport',
+        other: 'cat-other',
       };
 
       const lower = suggestion.toLowerCase().trim();
@@ -192,49 +180,10 @@ Return ONLY the category name, nothing else.`;
           break;
         }
       }
-    } catch (err) {
-      // Silently fall back to built-in suggestion
+    } catch (_) {
+      // Fall back to built-in suggestion.
     }
 
     return basic;
   },
 };
-
-function parseJsonFromText(text) {
-  if (!text) return null;
-
-  const cleaned = String(text || '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .trim()
-    .replace(/^```[a-z]*\n?/i, '')
-    .replace(/\n?```$/i, '')
-    .trim();
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (_) {}
-
-  const arrIdx = cleaned.indexOf('[');
-  const objIdx = cleaned.indexOf('{');
-  let start = -1;
-
-  if (arrIdx !== -1 && (objIdx === -1 || arrIdx < objIdx)) start = arrIdx;
-  else if (objIdx !== -1) start = objIdx;
-
-  if (start !== -1) {
-    try {
-      return JSON.parse(cleaned.slice(start));
-    } catch (_) {}
-
-    const opener = cleaned[start];
-    const closer = opener === '[' ? ']' : '}';
-    const end = cleaned.lastIndexOf(closer);
-    if (end > start) {
-      try {
-        return JSON.parse(cleaned.slice(start, end + 1));
-      } catch (_) {}
-    }
-  }
-
-  return null;
-}

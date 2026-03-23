@@ -1,5 +1,5 @@
 // Service Worker for offline PWA functionality
-const CACHE_NAME = 'budget-tool-v1';
+const CACHE_NAME = 'night-ledger-v2';
 const urlsToCache = [
   './',
   './index.html',
