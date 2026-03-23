@@ -91,22 +91,22 @@
 
 ---
 
-### Phase 9 — Income + bill management ⏳
+### Phase 9 — Income + bill management ✅
 **Goal:** Improve planning by modeling income streams and upcoming obligations.
 
 **Features:**
-- [ ] Income transaction type (separate from expenses)
-- [ ] Multiple income sources (salary, side gig, refunds, etc)
-- [ ] Recurring income setup (bi-weekly paycheck, etc)
-- [ ] Income projection for the month
-- [ ] Bill tracker with paid/unpaid states
-- [ ] Due-date alerts and reminders
-- [ ] Bill history and payment tracking
-- [ ] Income vs expenses side-by-side on dashboard
-- [ ] Monthly income targets
-- [ ] Bonus/variable income tracking
+- [x] Income transaction type (separate from expenses)
+- [x] Multiple income sources (salary, side gig, refunds, etc)
+- [x] Recurring income setup (bi-weekly paycheck, etc)
+- [x] Income projection for the month
+- [x] Bill tracker with paid/unpaid states
+- [x] Due-date alerts and reminders
+- [x] Bill history and payment tracking
+- [x] Income vs expenses side-by-side on dashboard
+- [x] Monthly income targets
+- [x] Bonus/variable income tracking
 
-**Status:** PENDING
+**Status:** SHIPPED
 
 ---
 
