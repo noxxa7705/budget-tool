@@ -816,12 +816,52 @@
             <p class="text-muted">Stored only in this browser. Not shipped in GitHub Pages.</p>
           </div>
           <div class="setting-row">
+            <label>LLM Model</label>
+            <select v-if="llmModelOptions.length" v-model="settings.llmModel" class="text-input">
+              <option v-for="model in llmModelOptions" :key="model.id" :value="model.id">{{ model.dropdownLabel }}</option>
+            </select>
+            <input v-else v-model="settings.llmModel" type="text" placeholder="Run connection test to load models" class="text-input">
+            <div class="setting-inline-meta">
+              <div class="status-badge" :class="llmModelStatus">{{ llmModelStatus }}</div>
+              <button @click="refreshModelOptions('llm', { silent: false })" class="btn-secondary btn-small" type="button">Refresh model list</button>
+            </div>
+            <p v-if="llmModelError" class="text-muted">{{ llmModelError }}</p>
+            <div v-if="selectedLlmModel" class="model-meta-card">
+              <div class="model-meta-title">{{ selectedLlmModel.id }}</div>
+              <div class="model-capability-row">
+                <span v-for="capability in getCapabilityBadges(selectedLlmModel)" :key="capability" class="model-capability-chip">{{ capability }}</span>
+              </div>
+              <div v-if="getModelStatLine(selectedLlmModel)" class="model-stat-line text-muted">{{ getModelStatLine(selectedLlmModel) }}</div>
+            </div>
+            <p v-else-if="llmModelOptions.length" class="text-muted">Pick one of the models reported by the endpoint.</p>
+          </div>
+          <div class="setting-row">
             <label>Vision Endpoint (optional)</label>
             <input v-model="settings.visionEndpoint" type="text" placeholder="https://api.anthropic.com/v1" class="text-input">
           </div>
           <div class="setting-row">
             <label>Vision API Key</label>
             <input v-model="settings.visionApiKey" type="password" placeholder="sk-ant-..." class="text-input">
+          </div>
+          <div class="setting-row">
+            <label>Vision Model</label>
+            <select v-if="selectableVisionModels.length" v-model="settings.visionModel" class="text-input">
+              <option v-for="model in selectableVisionModels" :key="model.id" :value="model.id">{{ model.dropdownLabel }}</option>
+            </select>
+            <input v-else v-model="settings.visionModel" type="text" placeholder="Run connection test to load vision-capable models" class="text-input">
+            <div class="setting-inline-meta">
+              <div class="status-badge" :class="visionModelStatus">{{ visionModelStatus }}</div>
+              <button @click="refreshModelOptions('vision', { silent: false })" class="btn-secondary btn-small" type="button">Refresh vision models</button>
+            </div>
+            <p v-if="visionModelError" class="text-muted">{{ visionModelError }}</p>
+            <div v-if="selectedVisionModel" class="model-meta-card">
+              <div class="model-meta-title">{{ selectedVisionModel.id }}</div>
+              <div class="model-capability-row">
+                <span v-for="capability in getCapabilityBadges(selectedVisionModel)" :key="capability" class="model-capability-chip">{{ capability }}</span>
+              </div>
+              <div v-if="getModelStatLine(selectedVisionModel)" class="model-stat-line text-muted">{{ getModelStatLine(selectedVisionModel) }}</div>
+            </div>
+            <p v-else-if="visionModelOptions.length" class="text-muted">No explicit vision capability was reported, so the raw model list is being shown.</p>
           </div>
           <button @click="testConnections" class="btn-primary">Test Connections</button>
         </div>
