@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0e27">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Budget Tool — Personal Finance</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%23ffd700'>💰</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+
+<nav id="nav" class="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">💰 Budget</a>
+    <span class="nav-title">Personal Finance</span>
+  </div>
+</nav>
+
+<div id="app" class="app-container" @keydown.escape.window="hideModals">
+  <!-- Toast notifications -->
+  <div class="toast" :class="{ visible: notification }">{{ notification }}</div>
+
+  <!-- Main content area -->
+  <div class="content-area">
+    
+    <!-- Dashboard Tab -->
+    <div v-show="activeTab === 'dashboard'" class="tab-content">
+      <div class="dashboard">
+        <!-- Summary cards -->
+        <div class="summary-cards">
+          <div class="card card-income">
+            <div class="card-label">Income ({{ currentMonth }})</div>
+            <div class="card-value">{{ formatCurrency(monthlyIncome) }}</div>
+          </div>
+          <div class="card card-expense">
+            <div class="card-label">Expenses ({{ currentMonth }})</div>
+            <div class="card-value">{{ formatCurrency(monthlyExpenses) }}</div>
+          </div>
+          <div class="card card-balance">
+            <div class="card-label">Net Worth</div>
+            <div class="card-value">{{ formatCurrency(netWorth) }}</div>
+          </div>
+        </div>
+
+        <!-- Accounts section -->
+        <div class="section">
+          <h3 class="section-title">Accounts</h3>
+          <div class="accounts-list">
+            <div v-for="account in accounts" :key="account.id" class="account-row">
+              <div class="account-info">
+                <span class="account-name">{{ account.name }}</span>
+                <span class="account-type">{{ account.type }}</span>
+              </div>
+              <div class="account-balance" :class="`balance-${account.type}`">
+                {{ formatCurrency(account.balance) }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spending by category -->
+        <div class="section">
+          <h3 class="section-title">Top Spending ({{ currentMonth }})</h3>
+          <div class="category-breakdown">
+            <div v-for="cat in topCategories" :key="cat.id" class="category-row">
+              <div class="category-bar">
+                <span class="category-emoji">{{ cat.emoji }}</span>
+                <div class="bar-container">
+                  <div class="bar-fill" :style="{ width: cat.percentage + '%', backgroundColor: cat.color }"></div>
+                </div>
+              </div>
+              <div class="category-amount">{{ formatCurrency(cat.total) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent transactions -->
+        <div class="section">
+          <div class="section-header">
+            <h3 class="section-title">Recent</h3>
+            <a href="#" @click.prevent="activeTab = 'transactions'" class="link-small">See all →</a>
+          </div>
+          <div class="transactions-preview">
+            <div v-for="txn in recentTransactions.slice(0, 5)" :key="txn.id" class="txn-row" @contextmenu.prevent="showTxnMenu(txn)">
+              <div class="txn-info">
+                <div class="txn-desc">{{ txn.description }}</div>
+                <div class="txn-date">{{ formatDate(txn.date) }}</div>
+              </div>
+              <div class="txn-amount" :class="txn.type === 'expense' ? 'negative' : 'positive'">
+                {{ txn.type === 'expense' ? '-' : '+' }}{{ formatCurrency(Math.abs(txn.amount)) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transactions Tab -->
+    <div v-show="activeTab === 'transactions'" class="tab-content">
+      <div class="transactions-view">
+        <div class="filter-bar">
+          <input v-model="filterText" type="text" placeholder="Search transactions..." class="search-input">
+          <button @click="showFilterModal = true" class="btn-filter">⊞</button>
+        </div>
+
+        <div v-if="filteredTransactions.length === 0" class="empty-state">
+          <div class="empty-icon">📭</div>
+          <p>No transactions found</p>
+        </div>
+        <div v-else class="transactions-list">
+          <div class="txn-group" v-for="group in groupedTransactions" :key="group.date">
+            <div class="txn-group-header">{{ formatDate(group.date) }}</div>
+            <div v-for="txn in group.txns" :key="txn.id" class="txn-row" @contextmenu.prevent="showTxnMenu(txn)">
+              <div class="txn-info">
+                <div class="txn-desc">{{ txn.description }}</div>
+                <div class="txn-category">{{ txn.category }} • {{ txn.account }}</div>
+              </div>
+              <div class="txn-amount" :class="txn.type === 'expense' ? 'negative' : 'positive'">
+                {{ txn.type === 'expense' ? '-' : '+' }}{{ formatCurrency(Math.abs(txn.amount)) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Budget Tab -->
+    <div v-show="activeTab === 'budget'" class="tab-content">
+      <div class="budget-view">
+        <div class="budget-month">
+          <button @click="previousMonth" class="btn-nav">&lt;</button>
+          <span class="month-label">{{ currentMonth }}</span>
+          <button @click="nextMonth" class="btn-nav">&gt;</button>
+        </div>
+
+        <div class="budget-list">
+          <div v-for="budget in budgets" :key="budget.id" class="budget-card">
+            <div class="budget-header">
+              <span class="budget-category">{{ budget.emoji }} {{ budget.name }}</span>
+              <span class="budget-amount">{{ formatCurrency(budget.spent) }} / {{ formatCurrency(budget.limit) }}</span>
+            </div>
+            <div class="budget-bar">
+              <div class="bar-fill" :style="{ width: Math.min(100, (budget.spent / budget.limit) * 100) + '%', backgroundColor: budget.color }"></div>
+            </div>
+            <div class="budget-footer">
+              <span v-if="budget.spent < budget.limit" class="budget-remaining">{{ formatCurrency(budget.limit - budget.spent) }} remaining</span>
+              <span v-else class="budget-over">{{ formatCurrency(budget.spent - budget.limit) }} over</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Goals Tab -->
+    <div v-show="activeTab === 'goals'" class="tab-content">
+      <div class="goals-view">
+        <div class="goals-list">
+          <div v-for="goal in goals" :key="goal.id" class="goal-card">
+            <div class="goal-header">
+              <span class="goal-name">{{ goal.name }}</span>
+              <span class="goal-target">{{ formatCurrency(goal.current) }} / {{ formatCurrency(goal.target) }}</span>
+            </div>
+            <div class="progress-ring-container">
+              <svg class="progress-ring" viewBox="0 0 100 100">
+                <circle class="progress-bg" cx="50" cy="50" r="45"></circle>
+                <circle class="progress-fill" cx="50" cy="50" r="45" :style="{ strokeDashoffset: getProgressOffset(goal) }"></circle>
+              </svg>
+              <div class="progress-text">{{ Math.round((goal.current / goal.target) * 100) }}%</div>
+            </div>
+            <div class="goal-info">
+              <p v-if="goal.targetDate">Target: {{ formatDate(goal.targetDate) }}</p>
+              <p>Monthly: {{ formatCurrency(goal.monthlyContribution) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div v-show="activeTab === 'settings'" class="tab-content">
+      <div class="settings-view">
+        <div class="settings-section">
+          <h3>Display</h3>
+          <div class="setting-row">
+            <label>Currency</label>
+            <select v-model="settings.currency" class="select-input">
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="JPY">JPY (¥)</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label>Theme</label>
+            <select v-model="settings.theme" class="select-input">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>AI & LLM</h3>
+          <div class="setting-row">
+            <label>LLM Endpoint</label>
+            <input v-model="settings.llmEndpoint" type="text" placeholder="http://localhost:8000/v1" class="text-input">
+            <div class="status-badge" :class="aiEndpointStatus">{{ aiEndpointStatus }}</div>
+          </div>
+          <div class="setting-row">
+            <label>API Key (optional)</label>
+            <input v-model="settings.apiKey" type="password" placeholder="sk-..." class="text-input">
+          </div>
+          <div class="setting-row">
+            <label>Vision Endpoint (optional)</label>
+            <input v-model="settings.visionEndpoint" type="text" placeholder="https://api.anthropic.com/v1" class="text-input">
+          </div>
+          <div class="setting-row">
+            <label>Vision API Key</label>
+            <input v-model="settings.visionApiKey" type="password" placeholder="sk-ant-..." class="text-input">
+          </div>
+          <button @click="testConnections" class="btn-primary">Test Connections</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Data</h3>
+          <button @click="exportData" class="btn-secondary">Export as JSON</button>
+          <button @click="showImportModal = true" class="btn-secondary">Import from JSON</button>
+          <button @click="clearAllData" class="btn-danger">Clear All Data</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>About</h3>
+          <p class="text-muted">Budget Tool v1.0</p>
+          <p class="text-muted">100% offline • PWA enabled • localStorage + IndexedDB</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom navigation -->
+  <nav class="bottom-nav">
+    <button v-for="tab in ['dashboard', 'transactions', 'budget', 'goals', 'settings']"
+            :key="tab"
+            :class="['nav-btn', { active: activeTab === tab }]"
+            @click="activeTab = tab">
+      <span class="nav-icon">{{ tabIcons[tab] }}</span>
+      <span class="nav-label">{{ tabLabels[tab] }}</span>
+    </button>
+  </nav>
+
+  <!-- Floating action button -->
+  <button v-if="activeTab === 'dashboard' || activeTab === 'transactions'" 
+          class="fab" 
+          @click="showQuickAddMenu = true"
+          title="Quick add transaction">
+    +
+  </button>
+
+  <!-- Quick add menu -->
+  <div v-if="showQuickAddMenu" class="modal-overlay" @click.self="showQuickAddMenu = false">
+    <div class="bottom-sheet">
+      <div class="sheet-header">
+        <h2>Add Transaction</h2>
+        <button class="btn-close" @click="showQuickAddMenu = false">×</button>
+      </div>
+      <div class="sheet-tabs">
+        <button :class="['sheet-tab', { active: quickAddMode === 'manual' }]" @click="quickAddMode = 'manual'">
+          ✓ Manual
+        </button>
+        <button :class="['sheet-tab', { active: quickAddMode === 'receipt' }]" @click="quickAddMode = 'receipt'">
+          📷 Receipt
+        </button>
+        <button :class="['sheet-tab', { active: quickAddMode === 'natural' }]" @click="quickAddMode = 'natural'">
+          💬 Natural
+        </button>
+      </div>
+      <div class="sheet-content">
+        <!-- Manual entry -->
+        <div v-show="quickAddMode === 'manual'" class="form-section">
+          <div class="form-group">
+            <label>Amount</label>
+            <div class="numpad-container">
+              <input v-model="quickAdd.amount" type="number" placeholder="0.00" class="amount-input">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <div class="category-chips">
+              <button v-for="cat in categories" :key="cat.id"
+                      :class="['chip', { active: quickAdd.category === cat.id }]"
+                      @click="quickAdd.category = cat.id">
+                {{ cat.emoji }} {{ cat.name }}
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Account</label>
+            <select v-model="quickAdd.account" class="select-input">
+              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
+                {{ acc.name }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <input v-model="quickAdd.description" type="text" placeholder="What was this for?" class="text-input">
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input v-model="quickAdd.date" type="date" class="text-input">
+          </div>
+          <button @click="addTransaction" class="btn-primary btn-full">Add Expense</button>
+        </div>
+
+        <!-- Receipt OCR -->
+        <div v-show="quickAddMode === 'receipt'" class="form-section">
+          <div v-if="!receiptImage" class="receipt-upload">
+            <input type="file" ref="receiptFileInput" accept="image/*" capture="environment" @change="handleReceiptCapture" style="display: none">
+            <button @click="$refs.receiptFileInput.click()" class="btn-large btn-primary">
+              📷 Take Photo
+            </button>
+            <p class="text-muted">or</p>
+            <button @click="$refs.receiptFileInput.click()" class="btn-large btn-secondary">
+              📁 Upload Image
+            </button>
+          </div>
+          <div v-else class="receipt-preview">
+            <img :src="receiptImage" alt="Receipt" class="receipt-thumbnail">
+            <button @click="receiptImage = null; receiptParsed = null" class="btn-secondary">Change Photo</button>
+            
+            <div v-if="receiptParsing" class="loading-spinner">
+              <span>Parsing receipt...</span>
+            </div>
+            <div v-else-if="receiptParsed" class="receipt-form">
+              <div class="form-group">
+                <label>Merchant</label>
+                <input v-model="receiptParsed.merchant" type="text" class="text-input">
+              </div>
+              <div class="form-group">
+                <label>Amount</label>
+                <input v-model="receiptParsed.amount" type="number" step="0.01" class="text-input">
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input v-model="receiptParsed.date" type="date" class="text-input">
+              </div>
+              <div class="form-group">
+                <label>Category</label>
+                <select v-model="receiptParsed.category" class="select-input">
+                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                    {{ cat.emoji }} {{ cat.name }}
+                  </option>
+                </select>
+              </div>
+              <div v-if="receiptParsed.items && receiptParsed.items.length > 0" class="receipt-items">
+                <details>
+                  <summary>Items ({{ receiptParsed.items.length }})</summary>
+                  <div v-for="(item, i) in receiptParsed.items" :key="i" class="item-row">
+                    <span>{{ item.description }} x{{ item.qty }}</span>
+                    <span>{{ formatCurrency(item.price) }}</span>
+                  </div>
+                </details>
+              </div>
+              <button @click="addReceiptTransaction" class="btn-primary btn-full">Save Transaction</button>
+              <button @click="addReceiptTransaction(true)" class="btn-secondary btn-full">Save & Repeat</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Natural language -->
+        <div v-show="quickAddMode === 'natural'" class="form-section">
+          <div class="form-group">
+            <label>Describe your transaction</label>
+            <textarea v-model="naturalLanguageInput" placeholder="e.g., 'spent $45 on groceries at whole foods this morning'" class="textarea-input"></textarea>
+          </div>
+          <button @click="parseNaturalLanguage" :disabled="!naturalLanguageInput.trim()" class="btn-primary btn-full">
+            Parse
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context menu for transactions -->
+  <div v-if="contextMenu.visible" class="context-menu" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }">
+    <button @click="editTransaction(contextMenu.txn)">Edit</button>
+    <button @click="deleteTransaction(contextMenu.txn.id)">Delete</button>
+    <button @click="duplicateTransaction(contextMenu.txn)">Duplicate</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/receipt-parser.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
