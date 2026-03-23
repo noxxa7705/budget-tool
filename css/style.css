@@ -318,6 +318,7 @@ input[type="number"] {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  padding-bottom: 60px;
 }
 
 .tab-content {
@@ -967,8 +968,10 @@ input[type="number"] {
 /* ── BOTTOM NAVIGATION ──────────────────────────────────– */
 
 .bottom-nav {
-  position: sticky;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   height: 60px;
   background: var(--bg);
   border-top: 1px solid var(--border);
