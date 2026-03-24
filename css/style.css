@@ -5003,3 +5003,130 @@ input[type="number"] {
   }
 }
 
+
+
+.onboarding-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem auto 0;
+  width: min(1120px, calc(100% - 2rem));
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(168, 85, 247, 0.12));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+}
+
+.onboarding-banner-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.compact-empty-state {
+  padding: 1.2rem;
+}
+
+.onboarding-modal {
+  width: min(720px, calc(100vw - 1.5rem));
+  max-height: min(90vh, 820px);
+  overflow: auto;
+  background: linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(3, 7, 18, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+}
+
+.onboarding-header {
+  align-items: flex-start;
+}
+
+.onboarding-header h2 {
+  margin: 0.25rem 0 0;
+}
+
+.onboarding-progress {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1.25rem 0.75rem;
+}
+
+.onboarding-dot {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+
+.onboarding-dot.active {
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+}
+
+.onboarding-body {
+  padding-top: 0.25rem;
+}
+
+.onboarding-panel h3 {
+  margin: 0 0 0.75rem;
+}
+
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.onboarding-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.onboarding-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.onboarding-highlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.onboarding-highlight-card span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.onboarding-footer {
+  padding: 0 1.25rem 1.25rem;
+}
+
+@media (max-width: 720px) {
+  .onboarding-banner {
+    width: calc(100% - 1rem);
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: 0.75rem;
+  }
+
+  .onboarding-grid,
+  .onboarding-highlight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-modal {
+    width: calc(100vw - 0.75rem);
+    border-radius: 20px 20px 0 0;
+  }
+}

@@ -190,6 +190,8 @@ const app = createApp({
       visionModel: window.AI?.defaults?.visionModel || 'gpt-4.1-mini',
       visionApiKey: '',
       incomeTarget: 0, // Phase 9: Monthly income target
+      onboardingCompleted: false,
+      onboardingSkipped: false,
     });
 
     const selectableVisionModels = computed(() => {
@@ -315,6 +317,21 @@ const app = createApp({
       notes: '',
     });
 
+    const showOnboardingWizard = ref(false);
+    const onboardingStep = ref(0);
+    const onboardingDraft = reactive({
+      checkingBalance: '0',
+      savingsBalance: '0',
+      creditBalance: '0',
+      creditLimit: '5000',
+      monthlyIncome: '0',
+      groceriesBudget: '450',
+      housingBudget: '1200',
+      transportBudget: '250',
+      funBudget: '150',
+      emergencyFundTarget: '1000',
+    });
+
     // ==================== Phase 12: Category Customization ====================
     const showCategoryCustomizer = ref(false);
     const categoryCustomizerTab = ref('manage');
@@ -413,6 +430,7 @@ const app = createApp({
       loadPhase13Templates();
       await refreshModelOptions('llm');
       await refreshModelOptions('vision');
+      maybeOpenOnboardingWizard();
       // Fetch AI insight on mount
       await fetchAIInsight();
     });
@@ -453,11 +471,7 @@ const app = createApp({
     }
 
     function initializeAccounts() {
-      return [
-        { id: 'acc-checking', name: 'Checking', type: 'checking', balance: 2500, apr: 0, minPayment: 0 },
-        { id: 'acc-savings', name: 'Savings', type: 'savings', balance: 5000, apr: 0, minPayment: 0 },
-        { id: 'acc-credit', name: 'Credit Card', type: 'credit', balance: -150, limit: 5000, apr: 18.9, minPayment: 35 },
-      ];
+      return [];
     }
 
     function initializeCategories() {
@@ -476,12 +490,125 @@ const app = createApp({
     }
 
     function initializeBudgets() {
-      return [
-        { id: 'bud-groceries', name: 'Groceries', categoryId: 'cat-groceries', emoji: '🛒', limit: 500, spent: 320, color: '#4ade80' },
-        { id: 'bud-dining', name: 'Dining', categoryId: 'cat-dining', emoji: '🍔', limit: 300, spent: 150, color: '#f97316' },
-        { id: 'bud-utilities', name: 'Utilities', categoryId: 'cat-utilities', emoji: '💡', limit: 200, spent: 120, color: '#06b6d4' },
-        { id: 'bud-shopping', name: 'Shopping', categoryId: 'cat-shopping', emoji: '🛍️', limit: 400, spent: 580, color: '#ec4899' },
+      return [];
+    }
+
+    function parseOnboardingNumber(value, fallback = 0) {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function onboardingNeedsSetup() {
+      return (
+        accounts.value.length === 0 &&
+        transactions.value.length === 0 &&
+        budgets.value.length === 0 &&
+        goals.value.length === 0 &&
+        bills.value.length === 0 &&
+        recurringTransactions.value.length === 0
+      );
+    }
+
+    function resetOnboardingDraft() {
+      onboardingStep.value = 0;
+      onboardingDraft.checkingBalance = '0';
+      onboardingDraft.savingsBalance = '0';
+      onboardingDraft.creditBalance = '0';
+      onboardingDraft.creditLimit = '5000';
+      onboardingDraft.monthlyIncome = settings.value.incomeTarget ? String(settings.value.incomeTarget) : '0';
+      onboardingDraft.groceriesBudget = '450';
+      onboardingDraft.housingBudget = '1200';
+      onboardingDraft.transportBudget = '250';
+      onboardingDraft.funBudget = '150';
+      const existingEmergencyGoal = goals.value.find((goal) => /emergency fund/i.test(goal.name || ''));
+      onboardingDraft.emergencyFundTarget = existingEmergencyGoal ? String(existingEmergencyGoal.target || 1000) : '1000';
+    }
+
+    function maybeOpenOnboardingWizard(force = false) {
+      if (force || (!settings.value.onboardingCompleted && onboardingNeedsSetup())) {
+        resetOnboardingDraft();
+        showOnboardingWizard.value = true;
+      }
+    }
+
+    function closeOnboardingWizard(markSkipped = true) {
+      showOnboardingWizard.value = false;
+      if (markSkipped) {
+        settings.value.onboardingSkipped = true;
+      }
+    }
+
+    function nextOnboardingStep() {
+      onboardingStep.value = Math.min(onboardingStep.value + 1, 3);
+    }
+
+    function previousOnboardingStep() {
+      onboardingStep.value = Math.max(onboardingStep.value - 1, 0);
+    }
+
+    function applyOnboardingSetup() {
+      const checkingBalance = parseOnboardingNumber(onboardingDraft.checkingBalance);
+      const savingsBalance = parseOnboardingNumber(onboardingDraft.savingsBalance);
+      const creditBalance = parseOnboardingNumber(onboardingDraft.creditBalance);
+      const creditLimit = Math.max(parseOnboardingNumber(onboardingDraft.creditLimit, 5000), 0);
+      const monthlyIncome = Math.max(parseOnboardingNumber(onboardingDraft.monthlyIncome), 0);
+      const emergencyFundTarget = Math.max(parseOnboardingNumber(onboardingDraft.emergencyFundTarget), 0);
+      const starterBudgetEntries = [
+        { id: 'bud-groceries', name: 'Groceries', categoryId: 'cat-groceries', emoji: '🛒', color: '#4ade80', limit: Math.max(parseOnboardingNumber(onboardingDraft.groceriesBudget), 0) },
+        { id: 'bud-housing', name: 'Housing', categoryId: 'cat-housing', emoji: '🏠', color: '#38bdf8', limit: Math.max(parseOnboardingNumber(onboardingDraft.housingBudget), 0) },
+        { id: 'bud-transport', name: 'Transport', categoryId: 'cat-transport', emoji: '🚕', color: '#10b981', limit: Math.max(parseOnboardingNumber(onboardingDraft.transportBudget), 0) },
+        { id: 'bud-fun', name: 'Fun', categoryId: 'cat-entertainment', emoji: '🎉', color: '#a855f7', limit: Math.max(parseOnboardingNumber(onboardingDraft.funBudget), 0) },
+      ].filter((budget) => budget.limit > 0).map((budget) => ({ ...budget, spent: 0 }));
+
+      const starterAccounts = [
+        { id: 'acc-checking', name: 'Checking', type: 'checking', balance: checkingBalance, apr: 0, minPayment: 0 },
+        { id: 'acc-savings', name: 'Savings', type: 'savings', balance: savingsBalance, apr: 0, minPayment: 0 },
       ];
+
+      if (creditBalance !== 0 || creditLimit > 0) {
+        starterAccounts.push({
+          id: 'acc-credit',
+          name: 'Credit Card',
+          type: 'credit',
+          balance: creditBalance > 0 ? -creditBalance : creditBalance,
+          limit: creditLimit || 5000,
+          apr: 0,
+          minPayment: 0,
+        });
+      }
+
+      const hasMeaningfulInput = starterAccounts.some((account) => Math.abs(Number(account.balance || 0)) > 0) || starterBudgetEntries.length > 0 || monthlyIncome > 0 || emergencyFundTarget > 0;
+      if (!hasMeaningfulInput) {
+        showNotification('Add at least one starter value to finish setup.');
+        onboardingStep.value = 1;
+        return;
+      }
+
+      categories.value = initializeCategories();
+      if (!categories.value.some((category) => category.id === 'cat-housing')) {
+        categories.value.push({ id: 'cat-housing', name: 'Housing', emoji: '🏠', color: '#38bdf8' });
+      }
+
+      accounts.value = starterAccounts.filter((account) => account.type === 'credit' || Math.abs(Number(account.balance || 0)) > 0);
+      if (!accounts.value.length) {
+        accounts.value = [{ id: 'acc-checking', name: 'Checking', type: 'checking', balance: 0, apr: 0, minPayment: 0 }];
+      }
+      budgets.value = starterBudgetEntries;
+      goals.value = emergencyFundTarget > 0
+        ? [{ id: 'goal-emergency-fund', name: 'Emergency Fund', target: emergencyFundTarget, current: 0, deadline: '', emoji: '🛡️' }]
+        : [];
+      transactions.value = [];
+      bills.value = [];
+      recurringTransactions.value = [];
+      settings.value.incomeTarget = monthlyIncome;
+      settings.value.onboardingCompleted = true;
+      settings.value.onboardingSkipped = false;
+      normalizeAccountMetadata();
+      quickAdd.account = accounts.value[0]?.id || '';
+      quickAdd.category = categories.value[0]?.id || '';
+      saveAllData();
+      showOnboardingWizard.value = false;
+      showNotification('Starter setup saved. You can edit everything later.');
     }
 
     async function initializeIndexedDB() {
@@ -2476,8 +2603,14 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         categories.value = initializeCategories();
         budgets.value = initializeBudgets();
         goals.value = [];
+        bills.value = [];
+        recurringTransactions.value = [];
+        settings.value.incomeTarget = 0;
+        settings.value.onboardingCompleted = false;
+        settings.value.onboardingSkipped = false;
         saveAllData();
         aiInsight.value = null;
+        maybeOpenOnboardingWizard(true);
         showNotification('All data cleared');
       }
     }
@@ -2521,6 +2654,9 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
           };
           
           await window.SeedDataUtils.initializeSeedData(proxyState);
+          settings.value.onboardingCompleted = true;
+          settings.value.onboardingSkipped = false;
+          showOnboardingWizard.value = false;
           await saveAllData();
           await loadReceiptGallery();
           showNotification('✅ Demo data loaded! Explore the dashboard, reports, budgets, and goals.');
@@ -2567,8 +2703,11 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
           };
           
           await window.SeedDataUtils.wipeDemoData(proxyState);
+          settings.value.onboardingCompleted = false;
+          settings.value.onboardingSkipped = false;
           await saveAllData();
           await loadReceiptGallery();
+          maybeOpenOnboardingWizard(true);
           showNotification('✅ Demo data wiped. Ready for your own data.');
         }
       }
@@ -4017,6 +4156,15 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       clearAllData,
       loadDemoData,
       wipeDemoData,
+      showOnboardingWizard,
+      onboardingStep,
+      onboardingDraft,
+      maybeOpenOnboardingWizard,
+      closeOnboardingWizard,
+      nextOnboardingStep,
+      previousOnboardingStep,
+      applyOnboardingSetup,
+      onboardingNeedsSetup,
       previousMonth,
       nextMonth,
       getProgressOffset,

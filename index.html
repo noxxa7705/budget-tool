@@ -38,6 +38,15 @@
       <button v-if="canQuickAdd" class="nav-primary-action" @click="openQuickAdd()">+ Add Transaction</button>
     </div>
   </nav>
+
+  <div v-if="onboardingNeedsSetup() && !showOnboardingWizard" class="onboarding-banner">
+    <div>
+      <div class="onboarding-banner-title">Fresh start detected</div>
+      <p class="text-muted">Run the setup wizard to add your starting balances, monthly target, and starter budgets.</p>
+    </div>
+    <button @click="maybeOpenOnboardingWizard(true)" class="btn-primary">✨ Start Setup Wizard</button>
+  </div>
+
   <!-- Toast notifications -->
   <div class="toast-viewport" aria-live="polite" aria-atomic="true">
     <transition-group name="toast-list" tag="div" class="toast-stack">
@@ -205,7 +214,13 @@
         <!-- Accounts section -->
         <div class="section section-panel accounts-section">
           <h3 class="section-title">Accounts</h3>
-          <div class="accounts-list">
+          <div v-if="accounts.length === 0" class="empty-state compact-empty-state">
+            <div class="empty-icon">🏦</div>
+            <p>No starter accounts yet</p>
+            <p class="text-muted">Use the setup wizard to add your opening balances.</p>
+            <button @click="maybeOpenOnboardingWizard(true)" class="btn-primary" style="margin-top: 1rem;">Start Setup Wizard</button>
+          </div>
+          <div v-else class="accounts-list">
             <div v-for="account in accounts" :key="account.id" class="account-row">
               <div class="account-info">
                 <span class="account-name">{{ account.name }}</span>
@@ -752,7 +767,13 @@
 
     <!-- Accounts Tab (Phase 5) -->
     <div v-show="activeTab === 'accounts'" class="tab-content">
-      <div class="accounts-statements">
+      <div v-if="accounts.length === 0" class="empty-state">
+        <div class="empty-icon">🏁</div>
+        <p>Start with your real balances</p>
+        <p class="text-muted">The setup wizard will create your starter accounts, income target, budgets, and first savings goal.</p>
+        <button @click="maybeOpenOnboardingWizard(true)" class="btn-primary" style="margin-top: 1rem;">Launch Setup Wizard</button>
+      </div>
+      <div v-else class="accounts-statements">
         <div v-for="account in accounts" :key="account.id" class="account-statement">
           <div class="account-header">
             <div class="account-title">{{ account.name }}</div>
@@ -893,6 +914,12 @@
           <h3>Device Sync (Phase 6)</h3>
           <p class="text-muted">Export/import your data as encrypted tokens between devices. No server required.</p>
           <button @click="syncModalVisible = true" class="btn-secondary">💾 Export/Import Data</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Setup Wizard</h3>
+          <p class="text-muted">Guided starter setup for opening balances, monthly income target, and first budgets.</p>
+          <button @click="maybeOpenOnboardingWizard(true)" class="btn-primary">✨ Launch Setup Wizard</button>
         </div>
 
         <div class="settings-section">
@@ -2105,6 +2132,108 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+<div v-if="showOnboardingWizard" class="modal-overlay" @click.self="closeOnboardingWizard()">
+  <div class="onboarding-modal">
+    <div class="modal-header onboarding-header">
+      <div>
+        <p class="text-muted">Starter setup</p>
+        <h2>Set up Night Ledger for your real numbers</h2>
+      </div>
+      <button class="btn-close" @click="closeOnboardingWizard()">×</button>
+    </div>
+
+    <div class="onboarding-progress">
+      <span v-for="step in 4" :key="step" class="onboarding-dot" :class="{ active: onboardingStep >= (step - 1) }"></span>
+    </div>
+
+    <div class="form-section onboarding-body">
+      <div v-if="onboardingStep === 0" class="onboarding-panel">
+        <h3>Welcome</h3>
+        <p class="text-muted">This wizard helps you start from a clean slate with your opening balances, monthly income target, and a few starter budgets.</p>
+        <div class="onboarding-highlight-grid">
+          <div class="onboarding-highlight-card">
+            <strong>Accounts</strong>
+            <span>Checking, savings, and credit card balances</span>
+          </div>
+          <div class="onboarding-highlight-card">
+            <strong>Targets</strong>
+            <span>Monthly income target and first savings goal</span>
+          </div>
+          <div class="onboarding-highlight-card">
+            <strong>Budgets</strong>
+            <span>Starter budget rails you can edit later</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="onboardingStep === 1" class="onboarding-panel">
+        <h3>Opening balances</h3>
+        <div class="onboarding-grid">
+          <label>
+            <span>Checking balance</span>
+            <input v-model="onboardingDraft.checkingBalance" type="number" step="0.01" class="input" placeholder="0">
+          </label>
+          <label>
+            <span>Savings balance</span>
+            <input v-model="onboardingDraft.savingsBalance" type="number" step="0.01" class="input" placeholder="0">
+          </label>
+          <label>
+            <span>Credit card balance owed</span>
+            <input v-model="onboardingDraft.creditBalance" type="number" step="0.01" class="input" placeholder="0">
+          </label>
+          <label>
+            <span>Credit limit</span>
+            <input v-model="onboardingDraft.creditLimit" type="number" step="0.01" class="input" placeholder="5000">
+          </label>
+        </div>
+      </div>
+
+      <div v-else-if="onboardingStep === 2" class="onboarding-panel">
+        <h3>Monthly targets</h3>
+        <div class="onboarding-grid">
+          <label>
+            <span>Monthly income target</span>
+            <input v-model="onboardingDraft.monthlyIncome" type="number" step="0.01" class="input" placeholder="0">
+          </label>
+          <label>
+            <span>Emergency fund goal</span>
+            <input v-model="onboardingDraft.emergencyFundTarget" type="number" step="0.01" class="input" placeholder="1000">
+          </label>
+        </div>
+      </div>
+
+      <div v-else class="onboarding-panel">
+        <h3>Starter budgets</h3>
+        <p class="text-muted">Leave any category at 0 to skip it for now.</p>
+        <div class="onboarding-grid">
+          <label>
+            <span>Groceries</span>
+            <input v-model="onboardingDraft.groceriesBudget" type="number" step="0.01" class="input" placeholder="450">
+          </label>
+          <label>
+            <span>Housing</span>
+            <input v-model="onboardingDraft.housingBudget" type="number" step="0.01" class="input" placeholder="1200">
+          </label>
+          <label>
+            <span>Transport</span>
+            <input v-model="onboardingDraft.transportBudget" type="number" step="0.01" class="input" placeholder="250">
+          </label>
+          <label>
+            <span>Fun</span>
+            <input v-model="onboardingDraft.funBudget" type="number" step="0.01" class="input" placeholder="150">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-footer onboarding-footer">
+      <button v-if="onboardingStep > 0" @click="previousOnboardingStep" class="btn-secondary">Back</button>
+      <button v-else @click="closeOnboardingWizard()" class="btn-secondary">Skip for now</button>
+      <button v-if="onboardingStep < 3" @click="nextOnboardingStep" class="btn-primary">Next</button>
+      <button v-else @click="applyOnboardingSetup" class="btn-primary">Save Starter Setup</button>
     </div>
   </div>
 </div>
