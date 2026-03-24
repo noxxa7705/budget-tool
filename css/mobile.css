@@ -108,11 +108,18 @@
   }
 
   /* Toast - full width on mobile */
-  .toast {
+  .toast-viewport {
     left: 12px;
     right: 12px;
     bottom: calc(var(--bottom-nav-h) + 12px);
-    max-width: calc(100% - 24px);
+  }
+
+  .toast-stack {
+    align-items: stretch;
+  }
+
+  .toast-card {
+    width: 100%;
   }
 
   /* Budget month navigation */
@@ -210,7 +217,7 @@
     bottom: calc(var(--bottom-nav-h) + max(12px, env(safe-area-inset-bottom)));
   }
 
-  .toast {
+  .toast-viewport {
     left: max(12px, env(safe-area-inset-left));
     right: max(12px, env(safe-area-inset-right));
     bottom: calc(var(--bottom-nav-h) + max(12px, env(safe-area-inset-bottom)));

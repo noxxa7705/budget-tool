@@ -39,7 +39,29 @@
     </div>
   </nav>
   <!-- Toast notifications -->
-  <div class="toast" :class="{ visible: notification && notification.trim() }">{{ notification }}</div>
+  <div class="toast-viewport" aria-live="polite" aria-atomic="true">
+    <transition-group name="toast-list" tag="div" class="toast-stack">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="toast-card"
+        :class="[`toast-${toast.type || 'info'}`]"
+        role="status"
+      >
+        <div class="toast-body">
+          <span class="toast-message">{{ toast.message }}</span>
+          <button
+            class="toast-close"
+            type="button"
+            @click="dismissToast(toast.id)"
+            :aria-label="`Dismiss notification: ${toast.message}`"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </transition-group>
+  </div>
 
   <!-- Main content area -->
   <div class="content-area">
@@ -975,7 +997,7 @@
           <textarea v-model="syncToken" class="sync-textarea" placeholder="Paste sync token here..."></textarea>
           <div class="sync-buttons">
             <button @click="importSyncToken(syncToken)" class="btn-primary">Import Data</button>
-            <button @click="syncToken = ''" class="btn-secondary">Clear</button>
+<button @click="syncToken = ''" class="btn-secondary">Clear</button>
           </div>
         </div>
 

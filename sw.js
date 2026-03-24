@@ -1,5 +1,5 @@
 // Service Worker for offline PWA functionality
-const CACHE_VERSION = 'night-ledger-v3';
+const CACHE_VERSION = 'night-ledger-v4';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -15,6 +15,7 @@ const APP_SHELL_URLS = [
   './js/receipt-parser.js',
   './js/category-customizer.js',
   './js/ui-shell.js',
+  './js/seed-data.js',
   './js/app.js',
 ];
 

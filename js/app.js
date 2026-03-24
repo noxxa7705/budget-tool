@@ -5,7 +5,9 @@ const app = createApp({
   setup() {
     // ==================== State ====================
     const activeTab = ref('dashboard');
-    const notification = ref('');
+    const toasts = ref([]);
+    let toastIdCounter = 0;
+    const toastTimers = new Map();
     const showQuickAddMenu = ref(false);
     const showFilterModal = ref(false);
     const showImportModal = ref(false);
@@ -392,10 +394,14 @@ const app = createApp({
       },
     });
 
+    let storageHydrated = false;
+
     // ==================== Initialization ====================
     onMounted(async () => {
       await loadAllData();
+      storageHydrated = true;
       await initializeIndexedDB();
+      await loadReceiptGallery();
       setupServiceWorker();
       loadTheme();
       applyTheme();
@@ -423,6 +429,7 @@ const app = createApp({
       normalizeAccountMetadata();
       transactions.value = (await getStorage('transactions')) || [];
       categories.value = (await getStorage('categories')) || initializeCategories();
+      incomeSources.value = (await getStorage('incomeSources')) || incomeSources.value;
       budgets.value = (await getStorage('budgets')) || initializeBudgets();
       goals.value = (await getStorage('goals')) || [];
       recurringTransactions.value = (await getStorage('recurringTransactions')) || [];
@@ -478,14 +485,30 @@ const app = createApp({
     }
 
     async function initializeIndexedDB() {
+      if (window.StorageAPI?.initReceiptDB) {
+        return window.StorageAPI.initReceiptDB();
+      }
+
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open('BudgetApp', 1);
-        req.onerror = reject;
+        const req = indexedDB.open('BudgetApp', 2);
+        req.onerror = () => reject(req.error || new Error('Failed to initialize IndexedDB'));
         req.onsuccess = () => resolve(req.result);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains('receipts')) {
             db.createObjectStore('receipts', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('receiptGallery')) {
+            const gallery = db.createObjectStore('receiptGallery', { keyPath: 'id' });
+            gallery.createIndex('transactionId', 'transactionId', { unique: false });
+            gallery.createIndex('timestamp', 'timestamp', { unique: false });
+            gallery.createIndex('tags', 'tags', { unique: false, multiEntry: true });
+          }
+          if (!db.objectStoreNames.contains('receiptThumbnails')) {
+            db.createObjectStore('receiptThumbnails', { keyPath: 'receiptId' });
+          }
+          if (!db.objectStoreNames.contains('receiptMetadata')) {
+            db.createObjectStore('receiptMetadata', { keyPath: 'receiptId' });
           }
         };
       });
@@ -1464,11 +1487,41 @@ const app = createApp({
       });
     }
 
-    function showNotification(msg) {
-      notification.value = msg;
-      setTimeout(() => {
-        notification.value = '';
-      }, 3000);
+    function dismissToast(toastId) {
+      const existingTimer = toastTimers.get(toastId);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+        toastTimers.delete(toastId);
+      }
+
+      toasts.value = toasts.value.filter(toast => toast.id !== toastId);
+    }
+
+    function inferToastType(message) {
+      if (/❌|failed|error|unable|invalid/i.test(message)) return 'error';
+      if (/⚠️|warning|warn/i.test(message)) return 'warning';
+      if (/✅|successful|saved|loaded|added|updated|deleted|wiped|copied|paid|undo|redo/i.test(message)) return 'success';
+      return 'info';
+    }
+
+    function showNotification(msg, options = {}) {
+      const message = typeof msg === 'string' ? msg.trim() : '';
+      if (!message) return;
+
+      const toast = {
+        id: `toast-${Date.now()}-${++toastIdCounter}`,
+        message,
+        type: options.type || inferToastType(message),
+      };
+
+      toasts.value = [...toasts.value.slice(-2), toast];
+
+      const duration = Number.isFinite(options.duration) ? options.duration : 3200;
+      const timer = setTimeout(() => {
+        dismissToast(toast.id);
+      }, Math.max(1200, duration));
+
+      toastTimers.set(toast.id, timer);
     }
 
     function hideModals() {
@@ -2429,7 +2482,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       }
     }
 
-    function loadDemoData() {
+    async function loadDemoData() {
       if (confirm('🚀 Load demo data? This will replace existing data with 3 months of realistic transactions, budgets, goals, and bills.')) {
         if (window.SeedDataUtils) {
           // Create a proxy state object that includes all reactive refs
@@ -2441,6 +2494,9 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
             budgets,
             goals,
             bills,
+            recurringTransactions,
+            phase13,
+            settings,
             // Add setters for each
             set transactions(val) { transactions.value = val; },
             set accounts(val) { accounts.value = val; },
@@ -2449,6 +2505,9 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
             set budgets(val) { budgets.value = val; },
             set goals(val) { goals.value = val; },
             set bills(val) { bills.value = val; },
+            set recurringTransactions(val) { recurringTransactions.value = val; },
+            set phase13Templates(val) { phase13.templates = val; },
+            set settings(val) { settings.value = val; },
             get transactions() { return transactions.value; },
             get accounts() { return accounts.value; },
             get categories() { return categories.value; },
@@ -2456,10 +2515,14 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
             get budgets() { return budgets.value; },
             get goals() { return goals.value; },
             get bills() { return bills.value; },
+            get recurringTransactions() { return recurringTransactions.value; },
+            get phase13Templates() { return phase13.templates; },
+            get settings() { return settings.value; },
           };
           
-          window.SeedDataUtils.initializeSeedData(proxyState);
-          saveAllData();
+          await window.SeedDataUtils.initializeSeedData(proxyState);
+          await saveAllData();
+          await loadReceiptGallery();
           showNotification('✅ Demo data loaded! Explore the dashboard, reports, budgets, and goals.');
         } else {
           showNotification('❌ Seed data utility not loaded');
@@ -2467,7 +2530,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       }
     }
 
-    function wipeDemoData() {
+    async function wipeDemoData() {
       if (confirm('🗑️ Wipe all demo data? This will delete transactions, budgets, goals, and bills. Accounts and categories will be reset.')) {
         if (window.SeedDataUtils) {
           const proxyState = {
@@ -2478,6 +2541,9 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
             budgets,
             goals,
             bills,
+            recurringTransactions,
+            phase13,
+            settings,
             set transactions(val) { transactions.value = val; },
             set accounts(val) { accounts.value = val; },
             set categories(val) { categories.value = val; },
@@ -2485,6 +2551,9 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
             set budgets(val) { budgets.value = val; },
             set goals(val) { goals.value = val; },
             set bills(val) { bills.value = val; },
+            set recurringTransactions(val) { recurringTransactions.value = val; },
+            set phase13Templates(val) { phase13.templates = val; },
+            set settings(val) { settings.value = val; },
             get transactions() { return transactions.value; },
             get accounts() { return accounts.value; },
             get categories() { return categories.value; },
@@ -2492,10 +2561,14 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
             get budgets() { return budgets.value; },
             get goals() { return goals.value; },
             get bills() { return bills.value; },
+            get recurringTransactions() { return recurringTransactions.value; },
+            get phase13Templates() { return phase13.templates; },
+            get settings() { return settings.value; },
           };
           
-          window.SeedDataUtils.wipeDemoData(proxyState);
-          saveAllData();
+          await window.SeedDataUtils.wipeDemoData(proxyState);
+          await saveAllData();
+          await loadReceiptGallery();
           showNotification('✅ Demo data wiped. Ready for your own data.');
         }
       }
@@ -3548,20 +3621,26 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
 
     // ==================== Storage ====================
     async function saveAllData() {
+      if (!storageHydrated) return false;
+
       await Promise.all([
         setStorage('accounts', accounts.value),
         setStorage('transactions', transactions.value),
         setStorage('categories', categories.value),
+        setStorage('incomeSources', incomeSources.value),
         setStorage('budgets', budgets.value),
         setStorage('goals', goals.value),
         setStorage('recurringTransactions', recurringTransactions.value),
         setStorage('bills', bills.value), // Phase 9: Save bills
+        setStorage('phase13_templates', phase13.templates),
         setStorage('settings', settings.value),
       ]);
+
+      return true;
     }
 
     // Auto-save when any data changes
-    watch([accounts, transactions, budgets, goals, recurringTransactions, bills, settings], saveAllData, { deep: true });
+    watch([accounts, transactions, categories, incomeSources, budgets, goals, recurringTransactions, bills, settings, () => phase13.templates], saveAllData, { deep: true });
 
 
     // ==================== Phase 12: Category Customization Methods ====================
@@ -3811,7 +3890,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
     return {
       // State
       activeTab,
-      notification,
+      toasts,
       showQuickAddMenu,
       showFilterModal,
       showImportModal,
@@ -3902,6 +3981,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       formatPercent,
       formatSignedPercent,
       formatDate,
+      dismissToast,
       showNotification,
       hideModals,
       setActiveTab,

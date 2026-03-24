@@ -62,6 +62,7 @@ window.StorageAPI = {
         id,
         transactionId: receipt.transactionId,
         highRes: highResBase64,
+        thumbnail,
         timestamp: receipt.timestamp || Date.now(),
         merchant: receipt.merchant,
         amount: receipt.amount,
@@ -236,6 +237,26 @@ window.StorageAPI = {
       req.onsuccess = resolve;
       req.onerror = reject;
     });
+
+    return true;
+  },
+
+  async clearReceiptGallery() {
+    const db = await this.initReceiptDB();
+    const stores = ['receipts', 'receiptGallery', 'receiptThumbnails', 'receiptMetadata'];
+
+    await Promise.all(stores.map((storeName) => new Promise((resolve, reject) => {
+      if (!db.objectStoreNames.contains(storeName)) {
+        resolve();
+        return;
+      }
+
+      const txn = db.transaction(storeName, 'readwrite');
+      const store = txn.objectStore(storeName);
+      const req = store.clear();
+      req.onsuccess = () => resolve();
+      req.onerror = reject;
+    })));
 
     return true;
   },
