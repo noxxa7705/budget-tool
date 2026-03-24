@@ -47,6 +47,23 @@
     <button @click="maybeOpenOnboardingWizard(true)" class="btn-primary">✨ Start Setup Wizard</button>
   </div>
 
+  <div v-if="activeTab === 'dashboard' && !showOnboardingWizard" class="demo-cta-banner">
+    <div>
+      <div class="onboarding-banner-title">{{ demoWorkspaceActive ? 'Demo workspace active' : 'Want a fully populated walkthrough?' }}</div>
+      <p class="text-muted">{{ demoWorkspaceActive ? 'You are viewing realistic demo transactions, budgets, goals, bills, and receipt gallery data. Reset it anytime or switch to your own setup.' : 'Load a realistic 3-month finance dataset instantly, or skip straight to your own starter setup.' }}</p>
+    </div>
+    <div class="demo-cta-actions">
+      <template v-if="demoWorkspaceActive">
+        <button @click="setActiveTab('transactions')" class="btn-primary">≣ View Transactions</button>
+        <button @click="wipeDemoData()" class="btn-danger">🗑️ Wipe Demo Data</button>
+      </template>
+      <template v-else-if="onboardingNeedsSetup()">
+        <button @click="loadDemoData()" class="btn-primary">🚀 Load Demo Data</button>
+        <button @click="maybeOpenOnboardingWizard(true)" class="btn-secondary">✨ Start Setup Wizard</button>
+      </template>
+    </div>
+  </div>
+
   <!-- Toast notifications -->
   <div class="toast-viewport" aria-live="polite" aria-atomic="true">
     <transition-group name="toast-list" tag="div" class="toast-stack">

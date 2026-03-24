@@ -192,6 +192,8 @@ const app = createApp({
       incomeTarget: 0, // Phase 9: Monthly income target
       onboardingCompleted: false,
       onboardingSkipped: false,
+      demoMode: 'uninitialized',
+      demoAutoloadHandled: false,
     });
 
     const selectableVisionModels = computed(() => {
@@ -428,6 +430,7 @@ const app = createApp({
       window.addEventListener('keydown', handleKeyboardShortcuts);
       // Phase 13: Load templates
       loadPhase13Templates();
+      await maybeAutoloadDemoData();
       await refreshModelOptions('llm');
       await refreshModelOptions('vision');
       maybeOpenOnboardingWizard();
@@ -457,6 +460,8 @@ const app = createApp({
       phase13.templates = (await getStorage('phase13_templates')) || [];
       const storedSettings = (await getStorage('settings')) || {};
       settings.value = { ...settings.value, ...storedSettings };
+      if (!settings.value.demoMode) settings.value.demoMode = 'uninitialized';
+      if (typeof settings.value.demoAutoloadHandled !== 'boolean') settings.value.demoAutoloadHandled = false;
 
       // Generate recurring transactions for this month if needed
       generateRecurringTransactions();
@@ -499,8 +504,11 @@ const app = createApp({
     }
 
     function onboardingNeedsSetup() {
+      const hasAccountBalances = accounts.value.some(account => Math.abs(Number(account.balance) || 0) > 0.009);
+      const hasPlanningTargets = Math.abs(Number(settings.value.incomeTarget) || 0) > 0.009;
       return (
-        accounts.value.length === 0 &&
+        !hasAccountBalances &&
+        !hasPlanningTargets &&
         transactions.value.length === 0 &&
         budgets.value.length === 0 &&
         goals.value.length === 0 &&
@@ -529,6 +537,60 @@ const app = createApp({
         resetOnboardingDraft();
         showOnboardingWizard.value = true;
       }
+    }
+
+    const demoWorkspaceActive = computed(() => settings.value.demoMode === 'demo' && transactions.value.length > 0);
+
+    function buildDemoProxyState() {
+      return {
+        transactions,
+        accounts,
+        categories,
+        incomeSources,
+        budgets,
+        goals,
+        bills,
+        recurringTransactions,
+        phase13,
+        settings,
+        set transactions(val) { transactions.value = val; },
+        set accounts(val) { accounts.value = val; },
+        set categories(val) { categories.value = val; },
+        set incomeSources(val) { incomeSources.value = val; },
+        set budgets(val) { budgets.value = val; },
+        set goals(val) { goals.value = val; },
+        set bills(val) { bills.value = val; },
+        set recurringTransactions(val) { recurringTransactions.value = val; },
+        set phase13Templates(val) { phase13.templates = val; },
+        set settings(val) { settings.value = val; },
+        get transactions() { return transactions.value; },
+        get accounts() { return accounts.value; },
+        get categories() { return categories.value; },
+        get incomeSources() { return incomeSources.value; },
+        get budgets() { return budgets.value; },
+        get goals() { return goals.value; },
+        get bills() { return bills.value; },
+        get recurringTransactions() { return recurringTransactions.value; },
+        get phase13Templates() { return phase13.templates; },
+        get settings() { return settings.value; },
+      };
+    }
+
+    async function maybeAutoloadDemoData() {
+      const shouldAutoload = (
+        onboardingNeedsSetup() &&
+        settings.value.demoAutoloadHandled !== true &&
+        settings.value.demoMode === 'uninitialized'
+      );
+
+      if (!shouldAutoload || !window.SeedDataUtils) return false;
+
+      await loadDemoData({
+        skipConfirm: true,
+        silent: true,
+        source: 'autostart',
+      });
+      return true;
     }
 
     function closeOnboardingWizard(markSkipped = true) {
@@ -2608,6 +2670,8 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
         settings.value.incomeTarget = 0;
         settings.value.onboardingCompleted = false;
         settings.value.onboardingSkipped = false;
+        settings.value.demoMode = 'empty';
+        settings.value.demoAutoloadHandled = true;
         saveAllData();
         aiInsight.value = null;
         maybeOpenOnboardingWizard(true);
@@ -2615,102 +2679,57 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       }
     }
 
-    async function loadDemoData() {
-      if (confirm('🚀 Load demo data? This will replace existing data with 3 months of realistic transactions, budgets, goals, and bills.')) {
-        if (window.SeedDataUtils) {
-          // Create a proxy state object that includes all reactive refs
-          const proxyState = {
-            transactions,
-            accounts,
-            categories,
-            incomeSources,
-            budgets,
-            goals,
-            bills,
-            recurringTransactions,
-            phase13,
-            settings,
-            // Add setters for each
-            set transactions(val) { transactions.value = val; },
-            set accounts(val) { accounts.value = val; },
-            set categories(val) { categories.value = val; },
-            set incomeSources(val) { incomeSources.value = val; },
-            set budgets(val) { budgets.value = val; },
-            set goals(val) { goals.value = val; },
-            set bills(val) { bills.value = val; },
-            set recurringTransactions(val) { recurringTransactions.value = val; },
-            set phase13Templates(val) { phase13.templates = val; },
-            set settings(val) { settings.value = val; },
-            get transactions() { return transactions.value; },
-            get accounts() { return accounts.value; },
-            get categories() { return categories.value; },
-            get incomeSources() { return incomeSources.value; },
-            get budgets() { return budgets.value; },
-            get goals() { return goals.value; },
-            get bills() { return bills.value; },
-            get recurringTransactions() { return recurringTransactions.value; },
-            get phase13Templates() { return phase13.templates; },
-            get settings() { return settings.value; },
-          };
-          
-          await window.SeedDataUtils.initializeSeedData(proxyState);
-          settings.value.onboardingCompleted = true;
-          settings.value.onboardingSkipped = false;
-          showOnboardingWizard.value = false;
-          await saveAllData();
-          await loadReceiptGallery();
-          showNotification('✅ Demo data loaded! Explore the dashboard, reports, budgets, and goals.');
-        } else {
-          showNotification('❌ Seed data utility not loaded');
-        }
+    async function loadDemoData(options = {}) {
+      const { skipConfirm = false, silent = false, source = 'manual' } = options;
+      if (!window.SeedDataUtils) {
+        showNotification('❌ Seed data utility not loaded');
+        return false;
       }
+
+      if (!skipConfirm && !confirm('🚀 Load demo data? This will replace existing data with 3 months of realistic transactions, budgets, goals, and bills.')) {
+        return false;
+      }
+
+      const proxyState = buildDemoProxyState();
+      await window.SeedDataUtils.initializeSeedData(proxyState);
+      settings.value.onboardingCompleted = true;
+      settings.value.onboardingSkipped = false;
+      settings.value.demoMode = 'demo';
+      settings.value.demoAutoloadHandled = true;
+      showOnboardingWizard.value = false;
+      activeTab.value = 'dashboard';
+      await saveAllData();
+      await loadReceiptGallery();
+
+      if (!silent) {
+        const prefix = source === 'autostart' ? '✅ Demo workspace loaded automatically.' : '✅ Demo data loaded!';
+        showNotification(`${prefix} Explore the dashboard, reports, budgets, and goals.`);
+      }
+
+      return true;
     }
 
-    async function wipeDemoData() {
-      if (confirm('🗑️ Wipe all demo data? This will delete transactions, budgets, goals, and bills. Accounts and categories will be reset.')) {
-        if (window.SeedDataUtils) {
-          const proxyState = {
-            transactions,
-            accounts,
-            categories,
-            incomeSources,
-            budgets,
-            goals,
-            bills,
-            recurringTransactions,
-            phase13,
-            settings,
-            set transactions(val) { transactions.value = val; },
-            set accounts(val) { accounts.value = val; },
-            set categories(val) { categories.value = val; },
-            set incomeSources(val) { incomeSources.value = val; },
-            set budgets(val) { budgets.value = val; },
-            set goals(val) { goals.value = val; },
-            set bills(val) { bills.value = val; },
-            set recurringTransactions(val) { recurringTransactions.value = val; },
-            set phase13Templates(val) { phase13.templates = val; },
-            set settings(val) { settings.value = val; },
-            get transactions() { return transactions.value; },
-            get accounts() { return accounts.value; },
-            get categories() { return categories.value; },
-            get incomeSources() { return incomeSources.value; },
-            get budgets() { return budgets.value; },
-            get goals() { return goals.value; },
-            get bills() { return bills.value; },
-            get recurringTransactions() { return recurringTransactions.value; },
-            get phase13Templates() { return phase13.templates; },
-            get settings() { return settings.value; },
-          };
-          
-          await window.SeedDataUtils.wipeDemoData(proxyState);
-          settings.value.onboardingCompleted = false;
-          settings.value.onboardingSkipped = false;
-          await saveAllData();
-          await loadReceiptGallery();
-          maybeOpenOnboardingWizard(true);
-          showNotification('✅ Demo data wiped. Ready for your own data.');
-        }
+    async function wipeDemoData(options = {}) {
+      const { skipConfirm = false, silent = false } = options;
+      if (!window.SeedDataUtils) return false;
+      if (!skipConfirm && !confirm('🗑️ Wipe all demo data? This will delete transactions, budgets, goals, and bills. Accounts and categories will be reset.')) {
+        return false;
       }
+
+      const proxyState = buildDemoProxyState();
+      await window.SeedDataUtils.wipeDemoData(proxyState);
+      settings.value.onboardingCompleted = false;
+      settings.value.onboardingSkipped = false;
+      settings.value.demoMode = 'empty';
+      settings.value.demoAutoloadHandled = true;
+      activeTab.value = 'dashboard';
+      await saveAllData();
+      await loadReceiptGallery();
+      maybeOpenOnboardingWizard(true);
+      if (!silent) {
+        showNotification('✅ Demo data wiped. Ready for your own data.');
+      }
+      return true;
     }
 
     // ==================== Month Navigation ====================
@@ -4156,6 +4175,7 @@ Return ONLY a JSON array of 3 category IDs (in order of likelihood), like: ["cat
       clearAllData,
       loadDemoData,
       wipeDemoData,
+      demoWorkspaceActive,
       showOnboardingWizard,
       onboardingStep,
       onboardingDraft,

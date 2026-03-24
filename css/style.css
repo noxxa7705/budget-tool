@@ -5024,6 +5024,26 @@ input[type="number"] {
   margin-bottom: 0.25rem;
 }
 
+.demo-cta-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem auto 0;
+  width: min(1120px, calc(100% - 2rem));
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(59, 130, 246, 0.12));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+}
+
+.demo-cta-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .compact-empty-state {
   padding: 1.2rem;
 }
@@ -5118,6 +5138,21 @@ input[type="number"] {
     flex-direction: column;
     align-items: stretch;
     margin-top: 0.75rem;
+  }
+
+  .demo-cta-banner {
+    width: calc(100% - 1rem);
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: 0.75rem;
+  }
+
+  .demo-cta-actions {
+    justify-content: stretch;
+  }
+
+  .demo-cta-actions > * {
+    width: 100%;
   }
 
   .onboarding-grid,
